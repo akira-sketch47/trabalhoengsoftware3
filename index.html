@@ -63,6 +63,10 @@ section{padding:36px 0}
 .demo-note{color:var(--muted);font-size:.82rem}
 .reg{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .reg-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:40px;align-items:start}
+.login-card{max-width:560px;margin:0 auto;padding:26px;background:var(--bg);border:1px solid var(--line);border-radius:14px}
+.login-card form{grid-template-columns:1fr}
+.login-card h2{font-size:2rem;margin-bottom:10px}
+.login-card>.lead{color:var(--muted);margin:0 0 20px}
 .reg h2{font-size:2rem;margin-bottom:12px}
 .reg p.lead{color:var(--muted)}
 .perks{list-style:none;padding:0;margin:20px 0 0;display:grid;gap:10px}
@@ -101,7 +105,7 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
   <nav aria-label="Principal">
    <a class="hide-sm" href="#vagas">Vagas</a>
    <a class="hide-sm" href="#cadastro" data-tab="empresa">Para empresas</a>
-   <a class="hide-sm" href="#cadastro" data-tab="login">Entrar</a>
+   <a class="hide-sm" href="#login">Entrar</a>
    <a class="btn sm" href="#cadastro" data-tab="candidato">Criar conta</a>
    <button class="theme-toggle" id="tema" type="button" aria-label="Ativar tema escuro">Tema escuro</button>
   </nav>
@@ -155,7 +159,6 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
     <div class="tabs" role="tablist">
      <button role="tab" id="t-candidato" aria-selected="true" data-tab="candidato">Sou candidato</button>
      <button role="tab" id="t-empresa" aria-selected="false" data-tab="empresa">Sou empresa</button>
-     <button role="tab" id="t-login" aria-selected="false" data-tab="login">Entrar</button>
     </div>
 
     <form id="f-candidato" novalidate>
@@ -168,7 +171,7 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
      <div class="f"><label for="c-senha">Senha</label><input id="c-senha" name="senha" type="password" minlength="6" required autocomplete="new-password"><span class="err"></span></div>
      <div class="f full"><label for="c-sobre">Sobre você</label><textarea id="c-sobre" name="sobre" placeholder="Conte sua experiência e objetivos"></textarea></div>
      <div class="f full"><button class="btn" type="submit">Criar perfil de candidato</button></div>
-     <div class="f full"><button class="btn ghost sm" type="button" data-tab="login">Já tem uma conta? Entrar</button></div>
+     <div class="f full"><a class="btn ghost sm" href="#login">Já tem uma conta? Entrar</a></div>
      <div class="ok" role="status"></div>
     </form>
 
@@ -182,17 +185,25 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
      <div class="f"><label for="e-senha">Senha</label><input id="e-senha" name="senha" type="password" minlength="6" required autocomplete="new-password"><span class="err"></span></div>
      <div class="f full"><label for="e-desc">Sobre a empresa</label><textarea id="e-desc" name="desc"></textarea></div>
      <div class="f full"><button class="btn" type="submit">Cadastrar empresa</button></div>
-     <div class="f full"><button class="btn ghost sm" type="button" data-tab="login">Já tem uma conta? Entrar</button></div>
+     <div class="f full"><a class="btn ghost sm" href="#login">Já tem uma conta? Entrar</a></div>
      <div class="ok" role="status"></div>
     </form>
 
-    <form id="f-login" novalidate hidden>
-     <p class="lead f full">Acesse sua área de candidato ou empresa.</p>
-     <div class="f full"><label for="l-email">E-mail</label><input id="l-email" name="email" type="email" required autocomplete="email"><span class="err"></span></div>
-     <div class="f full"><label for="l-senha">Senha</label><input id="l-senha" name="senha" type="password" minlength="6" required autocomplete="current-password"><span class="err"></span></div>
-     <div class="f full"><button class="btn" type="submit">Entrar</button></div>
-     <div class="f full"><p class="demo-note">Acesso simulado para este projeto acadêmico. Nenhuma credencial é verificada ou enviada.</p></div>
+   </div>
+  </div>
+ </section>
+ <section class="reg" id="login">
+  <div class="wrap">
+   <div class="login-card">
+    <h2>Entrar na sua conta</h2>
+    <p class="lead">Acesse sua área de candidato ou empresa.</p>
+    <form id="f-login" novalidate>
+     <div class="f"><label for="l-email">E-mail</label><input id="l-email" name="email" type="email" required autocomplete="email"><span class="err"></span></div>
+     <div class="f"><label for="l-senha">Senha</label><input id="l-senha" name="senha" type="password" minlength="6" required autocomplete="current-password"><span class="err"></span></div>
+     <div class="f"><button class="btn" type="submit">Entrar</button></div>
+     <p class="demo-note">Acesso simulado para este projeto acadêmico. Nenhuma credencial é verificada ou enviada.</p>
      <div class="ok" role="status"></div>
+     <a class="btn ghost sm" href="#cadastro">Ainda não tem conta? Cadastre-se</a>
     </form>
    </div>
   </div>
@@ -291,7 +302,7 @@ else if(temaSalvo==="light")document.documentElement.dataset.theme="light";
 function atualizarTema(){var escuro=document.documentElement.dataset.theme==="dark";$("tema").textContent=escuro?"Tema claro":"Tema escuro";$("tema").setAttribute("aria-label",escuro?"Ativar tema claro":"Ativar tema escuro")}
 $("tema").onclick=function(){var escuro=document.documentElement.dataset.theme!=="dark";document.documentElement.dataset.theme=escuro?"dark":"light";try{localStorage.setItem("pontec-tema",escuro?"dark":"light")}catch(e){avisar("O tema foi alterado, mas não pôde ser salvo para a próxima visita.","error")}atualizarTema()};
 atualizarTema();atualizarControles();
-function tab(n){["candidato","empresa","login"].forEach(function(k){var on=k===n;$("f-"+k).hidden=!on;$("t-"+k).setAttribute("aria-selected",on)})}
+function tab(n){["candidato","empresa"].forEach(function(k){var on=k===n;$("f-"+k).hidden=!on;$("t-"+k).setAttribute("aria-selected",on)})}
 document.querySelectorAll("[data-tab]").forEach(function(el){el.addEventListener("click",function(){tab(el.dataset.tab)})});
 ["candidato","empresa"].forEach(function(k){
  var f=$("f-"+k);
