@@ -101,6 +101,7 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
   <nav aria-label="Principal">
    <a class="hide-sm" href="#vagas">Vagas</a>
    <a class="hide-sm" href="#cadastro" data-tab="empresa">Para empresas</a>
+   <a class="hide-sm" href="#cadastro" data-tab="login">Entrar</a>
    <a class="btn sm" href="#cadastro" data-tab="candidato">Criar conta</a>
    <button class="theme-toggle" id="tema" type="button" aria-label="Ativar tema escuro">Tema escuro</button>
   </nav>
@@ -154,6 +155,7 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
     <div class="tabs" role="tablist">
      <button role="tab" id="t-candidato" aria-selected="true" data-tab="candidato">Sou candidato</button>
      <button role="tab" id="t-empresa" aria-selected="false" data-tab="empresa">Sou empresa</button>
+     <button role="tab" id="t-login" aria-selected="false" data-tab="login">Entrar</button>
     </div>
 
     <form id="f-candidato" novalidate>
@@ -166,6 +168,7 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
      <div class="f"><label for="c-senha">Senha</label><input id="c-senha" name="senha" type="password" minlength="6" required autocomplete="new-password"><span class="err"></span></div>
      <div class="f full"><label for="c-sobre">Sobre você</label><textarea id="c-sobre" name="sobre" placeholder="Conte sua experiência e objetivos"></textarea></div>
      <div class="f full"><button class="btn" type="submit">Criar perfil de candidato</button></div>
+     <div class="f full"><button class="btn ghost sm" type="button" data-tab="login">Já tem uma conta? Entrar</button></div>
      <div class="ok" role="status"></div>
     </form>
 
@@ -179,6 +182,16 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
      <div class="f"><label for="e-senha">Senha</label><input id="e-senha" name="senha" type="password" minlength="6" required autocomplete="new-password"><span class="err"></span></div>
      <div class="f full"><label for="e-desc">Sobre a empresa</label><textarea id="e-desc" name="desc"></textarea></div>
      <div class="f full"><button class="btn" type="submit">Cadastrar empresa</button></div>
+     <div class="f full"><button class="btn ghost sm" type="button" data-tab="login">Já tem uma conta? Entrar</button></div>
+     <div class="ok" role="status"></div>
+    </form>
+
+    <form id="f-login" novalidate hidden>
+     <p class="lead f full">Acesse sua área de candidato ou empresa.</p>
+     <div class="f full"><label for="l-email">E-mail</label><input id="l-email" name="email" type="email" required autocomplete="email"><span class="err"></span></div>
+     <div class="f full"><label for="l-senha">Senha</label><input id="l-senha" name="senha" type="password" minlength="6" required autocomplete="current-password"><span class="err"></span></div>
+     <div class="f full"><button class="btn" type="submit">Entrar</button></div>
+     <div class="f full"><p class="demo-note">Acesso simulado para este projeto acadêmico. Nenhuma credencial é verificada ou enviada.</p></div>
      <div class="ok" role="status"></div>
     </form>
    </div>
@@ -278,7 +291,7 @@ else if(temaSalvo==="light")document.documentElement.dataset.theme="light";
 function atualizarTema(){var escuro=document.documentElement.dataset.theme==="dark";$("tema").textContent=escuro?"Tema claro":"Tema escuro";$("tema").setAttribute("aria-label",escuro?"Ativar tema claro":"Ativar tema escuro")}
 $("tema").onclick=function(){var escuro=document.documentElement.dataset.theme!=="dark";document.documentElement.dataset.theme=escuro?"dark":"light";try{localStorage.setItem("pontec-tema",escuro?"dark":"light")}catch(e){avisar("O tema foi alterado, mas não pôde ser salvo para a próxima visita.","error")}atualizarTema()};
 atualizarTema();atualizarControles();
-function tab(n){["candidato","empresa"].forEach(function(k){var on=k===n;$("f-"+k).hidden=!on;$("t-"+k).setAttribute("aria-selected",on)})}
+function tab(n){["candidato","empresa","login"].forEach(function(k){var on=k===n;$("f-"+k).hidden=!on;$("t-"+k).setAttribute("aria-selected",on)})}
 document.querySelectorAll("[data-tab]").forEach(function(el){el.addEventListener("click",function(){tab(el.dataset.tab)})});
 ["candidato","empresa"].forEach(function(k){
  var f=$("f-"+k);
@@ -300,7 +313,23 @@ document.querySelectorAll("[data-tab]").forEach(function(el){el.addEventListener
   f.reset();
  });
 });
-render();
+ $("f-login").addEventListener("submit",function(e){
+  e.preventDefault();
+  var f=this,valid=true;
+  f.querySelectorAll("input").forEach(function(el){
+   var m="",er=el.parentNode.querySelector(".err");
+   if(el.required&&!el.value.trim())m="Preencha este campo.";
+   else if(el.type==="email"&&!/^\S+@\S+\.\S+$/.test(el.value))m="Informe um e-mail válido.";
+   else if(el.type==="password"&&el.value.length<6)m="Use ao menos 6 caracteres.";
+   er.textContent=m;el.classList.toggle("bad",!!m);if(m)valid=false;
+  });
+  if(!valid){var b=f.querySelector(".bad");if(b)b.focus();return}
+  var email=$("l-email").value;
+  var ok=f.querySelector(".ok");ok.style.display="block";
+  ok.textContent="Acesso simulado iniciado para "+email+". Este protótipo não valida credenciais nem acessa uma conta real.";
+  f.reset();
+ });
+ render();
 </script>
 </body>
 </html>
