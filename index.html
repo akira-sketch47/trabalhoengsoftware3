@@ -25,6 +25,7 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;heigh
 nav{display:flex;gap:6px;align-items:center}
 nav a{text-decoration:none;padding:8px 12px;border-radius:8px;font-weight:500;font-size:.95rem}
 nav a:hover{background:var(--line)}
+nav .theme-toggle{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 10px;font:600 .88rem 'Public Sans',sans-serif;cursor:pointer}
 .btn{display:inline-block;border:0;cursor:pointer;font:600 .95rem 'Public Sans',sans-serif;padding:11px 18px;border-radius:10px;background:var(--brand);color:var(--brand-ink);text-decoration:none}
 .btn:hover{filter:brightness(1.1)}
 .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
@@ -53,6 +54,13 @@ section{padding:36px 0}
 .side{text-align:right;display:grid;gap:8px;justify-items:end}
 .sal{font:700 1.05rem 'Bricolage Grotesque',sans-serif}
 .empty{padding:34px;text-align:center;color:var(--muted);border:1.5px dashed var(--line);border-radius:14px}
+.view-controls{display:flex;gap:8px;flex-wrap:wrap}
+.favorite{min-width:38px;padding:7px 10px;font-size:1.05rem;line-height:1}
+.favorite[aria-pressed="true"]{color:#b3261e;border-color:#b3261e}
+.job-actions{display:flex;gap:6px;align-items:center}
+.feedback{display:none;margin:14px 0;padding:12px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.feedback[data-kind="error"]{border-color:var(--err);color:var(--err)}
+.demo-note{color:var(--muted);font-size:.82rem}
 .reg{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .reg-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:40px;align-items:start}
 .reg h2{font-size:2rem;margin-bottom:12px}
@@ -94,6 +102,7 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
    <a class="hide-sm" href="#vagas">Vagas</a>
    <a class="hide-sm" href="#cadastro" data-tab="empresa">Para empresas</a>
    <a class="btn sm" href="#cadastro" data-tab="candidato">Criar conta</a>
+   <button class="theme-toggle" id="tema" type="button" aria-label="Ativar tema escuro">Tema escuro</button>
   </nav>
  </div>
 </header>
@@ -109,14 +118,23 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
    <button class="btn" id="buscar" type="button">Buscar vagas</button>
   </div>
   <div class="stats"><span><b id="nVagas">0</b> vagas abertas</span><span><b>12</b> empresas</span><span><b>3.480</b> candidatos cadastrados</span></div>
+  <p class="demo-note">Demonstração acadêmica: vagas e empresas fictícias; nenhuma candidatura ou cadastro é enviado a um servidor.</p>
  </div>
 
  <section id="vagas">
   <div class="wrap">
    <div class="sec-head">
     <h2>Vagas em destaque</h2>
-    <div class="chips" id="chips" role="group" aria-label="Filtrar por área"></div>
+    <div>
+     <div class="view-controls" role="group" aria-label="Filtrar vagas salvas ou candidaturas">
+      <button class="chip" id="ver-todas" type="button" aria-pressed="true">Todas</button>
+      <button class="chip" id="ver-salvas" type="button" aria-pressed="false">Salvas (0)</button>
+      <button class="chip" id="ver-candidaturas" type="button" aria-pressed="false">Candidaturas (0)</button>
+     </div>
+     <div class="chips" id="chips" role="group" aria-label="Filtrar por área"></div>
+    </div>
    </div>
+   <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
    <div class="jobs" id="lista" aria-live="polite"></div>
   </div>
  </section>
@@ -168,7 +186,7 @@ form{grid-template-columns:1fr}nav a.hide-sm{display:none}}
  </section>
 </main>
 
-<footer><div class="wrap">Pontec Vagas · Projeto acadêmico. Empresas, vagas e salários são fictícios.</div></footer>
+<footer><div class="wrap">Pontec Vagas · Projeto acadêmico. Empresas, vagas e salários são fictícios. Favoritos e candidaturas ficam somente neste navegador.</div></footer>
 
 <dialog id="dlg">
  <h3 id="d-t"></h3><p id="d-c"></p>
@@ -189,9 +207,36 @@ var JOBS=[
 {t:"Executivo(a) de Contas",c:"Salesforce",cor:"#0f9bd6",a:"Vendas",l:"Campinas, SP",m:"Híbrido",tipo:"CLT",s:"R$ 6.000 + comissão",d:"Prospectar clientes corporativos e conduzir negociações."},
 {t:"Desenvolvedor(a) Back-end Pleno",c:"iFood",cor:"#d62f4f",a:"Tecnologia",l:"Campinas, SP",m:"Híbrido",tipo:"CLT",s:"R$ 10.000 – 13.500",d:"Criar APIs em Java/Kotlin para entregas e pagamentos."},
 {t:"UX Researcher",c:"Natura",cor:"#c25a1e",a:"Design",l:"Cajamar, SP",m:"Híbrido",tipo:"CLT",s:"R$ 8.000 – 11.000",d:"Planejar pesquisas com clientes e transformar achados em melhorias."},
-{t:"Analista de BI",c:"Banco do Brasil",cor:"#d4b400",a:"Dados",l:"Brasília, DF",m:"Presencial",tipo:"CLT",s:"R$ 8.800 – 11.200",d:"Modelar dados e construir painéis para a diretoria."}
+{t:"Analista de BI",c:"Banco do Brasil",cor:"#d4b400",a:"Dados",l:"Brasília, DF",m:"Presencial",tipo:"CLT",s:"R$ 8.800 – 11.200",d:"Modelar dados e construir painéis para a diretoria."},
+{t:"Assistente de Suporte de TI",c:"TechVale",cor:"#287f72",a:"Tecnologia",l:"Itapetininga, SP",m:"Presencial",tipo:"CLT",s:"R$ 3.200 – 4.200",d:"Atender chamados, configurar equipamentos e apoiar a equipe de tecnologia local."},
+{t:"Desenvolvedor(a) de Sistemas",c:"Sorocaba Digital",cor:"#455ca8",a:"Tecnologia",l:"Sorocaba, SP",m:"Híbrido",tipo:"CLT",s:"R$ 6.500 – 9.000",d:"Desenvolver e manter sistemas internos em colaboração com as equipes de produto."},
+{t:"Designer Gráfico",c:"Estúdio Ipê",cor:"#ba5c85",a:"Design",l:"Jundiaí, SP",m:"Híbrido",tipo:"CLT",s:"R$ 4.000 – 5.800",d:"Criar peças digitais e materiais de comunicação para campanhas e produtos."},
+{t:"Analista de Marketing",c:"Interior Conecta",cor:"#d36b35",a:"Marketing",l:"Ribeirão Preto, SP",m:"Presencial",tipo:"CLT",s:"R$ 4.500 – 6.500",d:"Planejar campanhas, acompanhar métricas e apoiar ações de comunicação."},
+{t:"Analista de Dados Júnior",c:"Costa Analytics",cor:"#3184a0",a:"Dados",l:"Santos, SP",m:"Híbrido",tipo:"CLT",s:"R$ 4.800 – 6.800",d:"Organizar bases de dados e preparar relatórios para apoiar decisões."},
+{t:"Assistente de E-commerce",c:"Vitrine Sul",cor:"#8a6d36",a:"Vendas",l:"Curitiba, PR",m:"Presencial",tipo:"CLT",s:"R$ 3.500 – 4.800",d:"Atualizar produtos na loja virtual e acompanhar pedidos e indicadores de venda."}
 ];
-var area="",lista=document.getElementById("lista"),$=function(i){return document.getElementById(i)};
+var area="",visao="todas",lista=document.getElementById("lista"),$=function(i){return document.getElementById(i)};
+function avisar(texto,tipo){var el=$("feedback");el.textContent=texto;el.dataset.kind=tipo||"info";el.style.display="block"}
+function lerLista(chave){
+ try{var valor=JSON.parse(localStorage.getItem(chave)||"[]");if(!Array.isArray(valor))throw new Error("Formato inválido");return valor}
+ catch(e){avisar("Não foi possível carregar seus dados de demonstração salvos neste navegador. As ações desta sessão ainda podem ser usadas.","error");return []}
+}
+var salvas=lerLista("pontec-salvas"),candidaturas=lerLista("pontec-candidaturas");
+function gravarLista(chave,valor){
+ try{localStorage.setItem(chave,JSON.stringify(valor));return true}
+ catch(e){avisar("Não foi possível salvar neste navegador. Verifique as permissões de armazenamento e tente novamente.","error");return false}
+}
+function atualizarControles(){
+ $("ver-salvas").textContent="Salvas ("+salvas.length+")";
+ $("ver-candidaturas").textContent="Candidaturas ("+candidaturas.length+")";
+}
+function selecionarVisao(salvasApenas,candidaturasApenas){
+ visao=salvasApenas?"salvas":candidaturasApenas?"candidaturas":"todas";
+ $("ver-todas").setAttribute("aria-pressed",!salvasApenas&&!candidaturasApenas);
+ $("ver-salvas").setAttribute("aria-pressed",salvasApenas);
+ $("ver-candidaturas").setAttribute("aria-pressed",candidaturasApenas);
+ render();
+}
 var cidades=[];JOBS.forEach(function(j){if(j.m!=="Remoto"&&cidades.indexOf(j.l)<0)cidades.push(j.l)});
 cidades.sort().forEach(function(c){var o=document.createElement("option");o.textContent=c;$("cidade").appendChild(o)});
 var areas=["Todas"].concat(JOBS.map(function(j){return j.a}).filter(function(v,i,a){return a.indexOf(v)===i}));
@@ -200,21 +245,41 @@ areas.forEach(function(a,i){var b=document.createElement("button");b.className="
 function render(){
  var q=$("q").value.toLowerCase().trim(),ci=$("cidade").value,mo=$("modo").value;
  var r=JOBS.map(function(j,i){j.i=i;return j}).filter(function(j){
-  return (!q||(j.t+" "+j.c).toLowerCase().indexOf(q)>-1)&&(!ci||j.l===ci)&&(!mo||j.m===mo)&&(!area||j.a===area)});
- $("nVagas").textContent=JOBS.length;
+  return (!q||(j.t+" "+j.c).toLowerCase().indexOf(q)>-1)&&(!ci||j.l===ci)&&(!mo||j.m===mo)&&(!area||j.a===area)&&(visao!=="salvas"||salvas.indexOf(j.i)>-1)&&(visao!=="candidaturas"||candidaturas.indexOf(j.i)>-1)});
+ $("nVagas").textContent=r.length;
  if(!r.length){lista.innerHTML='<div class="empty">Nenhuma vaga encontrada. Tente outro cargo, cidade ou modalidade.</div>';return}
- lista.innerHTML=r.map(function(j){return '<article class="job"><div class="logo-co" style="background:'+j.cor+'" aria-hidden="true">'+j.c[0]+'</div><div><h3>'+j.t+'</h3><div class="co">'+j.c+' · '+j.l+'</div><div class="tags"><span class="tag">'+j.m+'</span><span class="tag">'+j.tipo+'</span><span class="tag">'+j.a+'</span></div></div><div class="side"><span class="sal">'+j.s+'</span><button class="btn sm" data-i="'+j.i+'" type="button">Ver vaga</button></div></article>'}).join("");
+ lista.innerHTML=r.map(function(j){var salva=salvas.indexOf(j.i)>-1,aplicou=candidaturas.indexOf(j.i)>-1;return '<article class="job"><div class="logo-co" style="background:'+j.cor+'" aria-hidden="true">'+j.c[0]+'</div><div><h3>'+j.t+'</h3><div class="co">'+j.c+' · '+j.l+'</div><div class="tags"><span class="tag">'+j.m+'</span><span class="tag">'+j.tipo+'</span><span class="tag">'+j.a+'</span>'+(aplicou?'<span class="tag">Candidatura registrada</span>':'')+'</div></div><div class="side"><span class="sal">'+j.s+'</span><div class="job-actions"><button class="btn ghost sm favorite" data-fav="'+j.i+'" type="button" aria-label="'+(salva?'Remover dos':'Salvar nos')+' favoritos" aria-pressed="'+salva+'">'+(salva?'♥':'♡')+'</button><button class="btn sm" data-i="'+j.i+'" type="button">Ver vaga</button></div></div></article>'}).join("");
 }
 $("buscar").onclick=render;$("q").onkeydown=function(e){if(e.key==="Enter")render()};
 $("cidade").onchange=$("modo").onchange=render;
-lista.onclick=function(e){var b=e.target.closest("button[data-i]");if(!b)return;var j=JOBS[b.dataset.i];
- $("d-t").textContent=j.t;$("d-c").textContent=j.c+" · "+j.l+" · "+j.m;$("d-d").textContent=j.d+" Salário: "+j.s+".";
- $("d-ok").textContent="Candidatar-se";$("d-ok").disabled=false;$("dlg").showModal()};
+lista.onclick=function(e){
+ var f=e.target.closest("button[data-fav]");
+ if(f){var i=Number(f.dataset.fav),next=salvas.slice(),pos=next.indexOf(i);if(pos>-1)next.splice(pos,1);else next.push(i);if(gravarLista("pontec-salvas",next)){salvas=next;atualizarControles();render()}return}
+ var b=e.target.closest("button[data-i]");if(!b)return;var j=JOBS[b.dataset.i];
+ $("d-t").textContent=j.t;$("d-c").textContent=j.c+" · "+j.l+" · "+j.m+" · "+j.tipo;$("d-d").textContent=j.d+" Salário: "+j.s+".";
+ $("d-ok").dataset.job=j.i;
+ var jaCandidatou=candidaturas.indexOf(j.i)>-1;
+ $("d-ok").textContent=jaCandidatou?"Candidatura registrada":"Candidatar-se";
+ $("d-ok").disabled=jaCandidatou;$("dlg").showModal()};
 $("d-x").onclick=function(){$("dlg").close()};
-$("d-ok").onclick=function(){this.textContent="Candidatura enviada!";this.disabled=true};
+$("d-ok").onclick=function(){
+ var i=Number(this.dataset.job);
+ if(candidaturas.indexOf(i)>-1)return;
+ var next=candidaturas.concat([i]);
+ if(gravarLista("pontec-candidaturas",next)){candidaturas=next;atualizarControles();this.textContent="Candidatura registrada";this.disabled=true;render();avisar("Candidatura registrada com sucesso. Nenhum dado foi enviado.");}
+};
+$("ver-todas").onclick=function(){selecionarVisao(false,false)};
+$("ver-salvas").onclick=function(){selecionarVisao(true,false)};
+$("ver-candidaturas").onclick=function(){selecionarVisao(false,true)};
+var temaSalvo="";
+try{temaSalvo=localStorage.getItem("pontec-tema")||""}catch(e){avisar("A preferência de tema não pôde ser carregada neste navegador.","error")}
+if(temaSalvo==="dark"||(temaSalvo===""&&window.matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.dataset.theme="dark";
+else if(temaSalvo==="light")document.documentElement.dataset.theme="light";
+function atualizarTema(){var escuro=document.documentElement.dataset.theme==="dark";$("tema").textContent=escuro?"Tema claro":"Tema escuro";$("tema").setAttribute("aria-label",escuro?"Ativar tema claro":"Ativar tema escuro")}
+$("tema").onclick=function(){var escuro=document.documentElement.dataset.theme!=="dark";document.documentElement.dataset.theme=escuro?"dark":"light";try{localStorage.setItem("pontec-tema",escuro?"dark":"light")}catch(e){avisar("O tema foi alterado, mas não pôde ser salvo para a próxima visita.","error")}atualizarTema()};
+atualizarTema();atualizarControles();
 function tab(n){["candidato","empresa"].forEach(function(k){var on=k===n;$("f-"+k).hidden=!on;$("t-"+k).setAttribute("aria-selected",on)})}
 document.querySelectorAll("[data-tab]").forEach(function(el){el.addEventListener("click",function(){tab(el.dataset.tab)})});
-function save(k,o){try{var a=JSON.parse(localStorage.getItem(k)||"[]");a.push(o);localStorage.setItem(k,JSON.stringify(a))}catch(e){}}
 ["candidato","empresa"].forEach(function(k){
  var f=$("f-"+k);
  f.addEventListener("submit",function(e){
@@ -229,9 +294,9 @@ function save(k,o){try{var a=JSON.parse(localStorage.getItem(k)||"[]");a.push(o)
    if(er){er.textContent=m;el.classList.toggle("bad",!!m)}
    if(m)valid=false});
   if(!valid){var b=f.querySelector(".bad");if(b)b.focus();return}
-  var d={};new FormData(f).forEach(function(v,n){if(n!=="senha")d[n]=v});save(k,d);
+  var d={};new FormData(f).forEach(function(v,n){if(n!=="senha")d[n]=v});
   var ok=f.querySelector(".ok");ok.style.display="block";
-  ok.textContent=k==="candidato"?"Perfil criado! Bem-vindo(a), "+d.nome.split(" ")[0]+".":"Empresa "+d.nome+" cadastrada com sucesso!";
+  ok.textContent=k==="candidato"?"Perfil de demonstração criado! Bem-vindo(a), "+d.nome.split(" ")[0]+". Nenhum dado foi enviado ou armazenado.":"Cadastro de demonstração concluído para "+d.nome+". Nenhum dado foi enviado ou armazenado.";
   f.reset();
  });
 });
