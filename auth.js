@@ -22,7 +22,7 @@
     "auth/wrong-password": "E-mail ou senha incorretos.",
     "auth/too-many-requests": "Muitas tentativas. Aguarde um pouco e tente de novo.",
     "auth/operation-not-allowed": "Ative o método E-mail/senha no Firebase Authentication.",
-    "signup_disabled": "O Supabase está bloqueando novos cadastros. No painel, abra Authentication > Settings > User Signups e habilite “Allow new users to sign up”. Para não enviar confirmação por e-mail, mantenha “Confirm email” desativado nas configurações do provedor Email.",
+    "signup_disabled": "O cadastro por e-mail está desativado no Supabase. Em Authentication > Settings > User Signups, habilite “Allow new users to sign up”; em Authentication > Providers > Email, habilite o provedor Email e desative “Confirm email” para não exigir confirmação por e-mail.",
     "email_not_confirmed": "Confirme o e-mail da conta ou desative “Confirm email” em Supabase > Authentication > Providers > Email.",
     "over_email_send_rate_limit": "O Supabase ainda está tentando enviar e-mails. Desative “Confirm email” em Supabase > Authentication > Providers > Email para o cadastro não exigir confirmação. Se já desativou, aguarde o limite temporário liberar e tente novamente. Se a conta já foi criada, use a aba Entrar.",
     "email_rate_limit_exceeded": "O Supabase ainda está tentando enviar e-mails. Desative “Confirm email” em Supabase > Authentication > Providers > Email para o cadastro não exigir confirmação. Se já desativou, aguarde o limite temporário liberar e tente novamente. Se a conta já foi criada, use a aba Entrar.",
