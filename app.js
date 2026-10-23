@@ -157,7 +157,29 @@
     try { localStorage.setItem(listKey(name), JSON.stringify(value)); return true; }
     catch (e) { toast("Não foi possível salvar neste navegador. Verifique as permissões de armazenamento.", "error"); return false; }
   }
-  function loadLists() { state.saved = readList("salvas"); state.applied = readList("candidaturas"); }
+  function loadLists() {
+    if (Auth.mode !== "supabase") {
+      state.saved = readList("salvas");
+      state.applied = readList("candidaturas");
+      return Promise.resolve();
+    }
+    if (!state.user) {
+      state.saved = [];
+      state.applied = [];
+      return Promise.resolve();
+    }
+    var savedRequest = provider.listSaved(state.user.uid);
+    var appliedRequest = state.profile && state.profile.role === "candidate"
+      ? provider.listApplications(state.user.uid) : Promise.resolve([]);
+    return Promise.all([savedRequest, appliedRequest]).then(function (lists) {
+      state.saved = lists[0];
+      state.applied = lists[1];
+    }).catch(function (err) {
+      state.saved = [];
+      state.applied = [];
+      toast(Auth.explain(err), "error");
+    });
+  }
 
   /* ---------- Vagas ---------- */
   function refreshSearchOptions() {
@@ -243,7 +265,7 @@
       renderJobs();
       renderCompanyJobs();
     }).catch(function (err) {
-      if (Auth.mode === "firebase") toast(Auth.explain(err), "error");
+      if (Auth.mode === "firebase" || Auth.mode === "supabase") toast(Auth.explain(err), "error");
     });
   }
 
@@ -275,12 +297,13 @@
     }
     $("lista").innerHTML = list.map(function (j) {
       var saved = state.saved.indexOf(j.id) > -1, applied = state.applied.indexOf(j.id) > -1;
+      var canPersist = Auth.mode !== "supabase" || state.companyJobs.some(function (job) { return job.id === j.id; });
       return '<article class="job"><div class="co-logo" style="background:' + esc(j.cor) + '" aria-hidden="true">' + esc(j.c[0]) + "</div>" +
         '<div><h3>' + esc(j.t) + '</h3><p class="job-co">' + esc(j.c) + " – " + esc(j.l) + '</p><div class="tags"><span class="tag">' +
         esc(j.m) + '</span><span class="tag">' + esc(j.tipo) + '</span><span class="tag">' + esc(j.a) + "</span>" +
         (applied ? '<span class="tag ok">Candidatura enviada</span>' : "") + "</div></div>" +
         '<div class="job-side"><span class="sal">' + esc(j.s) + '</span><div class="job-actions">' +
-        '<button class="icon-btn fav" type="button" data-fav="' + j.id + '" aria-pressed="' + saved + '" aria-label="' + (saved ? "Remover " : "Salvar ") + esc(j.t) + (saved ? " das vagas salvas" : " nas vagas salvas") + '">' +
+        '<button class="icon-btn fav" type="button" data-fav="' + j.id + '" aria-pressed="' + saved + '" aria-label="' + (saved ? "Remover " : "Salvar ") + esc(j.t) + (saved ? " das vagas salvas" : " nas vagas salvas") + '"' + (canPersist ? "" : ' disabled title="Vaga de exemplo; interações reais estão disponíveis para vagas publicadas"') + '>' +
         '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.2-9.2C1.6 8 3.7 5 6.9 5c1.9 0 3.5 1 5.1 3 1.6-2 3.2-3 5.1-3 3.2 0 5.3 3 4.1 6.3-1.7 4.6-9.2 9.2-9.2 9.2z"/></svg></button>' +
         '<button class="btn sm" type="button" data-view="' + j.id + '">Ver vaga</button></div></div></article>';
     }).join("");
@@ -312,13 +335,18 @@
     if (applied) {
       btn.textContent = "Candidatura enviada";
       btn.disabled = true;
+    } else if (Auth.mode === "supabase" && !state.companyJobs.some(function (job) { return job.id === openJob.id; })) {
+      btn.disabled = true;
+      note.textContent = "Vaga de exemplo. Para se candidatar, escolha uma vaga publicada por uma empresa.";
     } else if (!state.user) {
       btn.textContent = "Entrar para se candidatar";
     } else if (state.profile && state.profile.role === "company") {
       btn.disabled = true;
       note.textContent = "Contas de empresa não podem se candidatar a vagas.";
     } else {
-      note.textContent = "Projeto acadêmico: a candidatura é registrada neste navegador e nenhum dado é enviado a empresas.";
+      note.textContent = Auth.mode === "supabase"
+        ? "Sua candidatura será compartilhada com a empresa responsável pela vaga."
+        : "Projeto acadêmico: a candidatura é registrada neste navegador e nenhum dado é enviado a empresas.";
     }
   }
 
@@ -331,6 +359,17 @@
     }
     if (state.profile && state.profile.role === "company") return;
     if (state.applied.indexOf(openJob.id) > -1) return;
+    if (Auth.mode === "supabase") {
+      provider.applyToJob(state.user.uid, openJob.id, state.profile, state.user.email)
+        .then(function () {
+          state.applied = state.applied.concat([openJob.id]);
+          refreshApplyButton();
+          renderJobs();
+          toast("Candidatura enviada para " + openJob.t + ".");
+        })
+        .catch(function (err) { toast(Auth.explain(err), "error"); });
+      return;
+    }
     var next = state.applied.concat([openJob.id]);
     if (writeList("candidaturas", next)) {
       state.applied = next;
@@ -341,6 +380,20 @@
   }
 
   function toggleSaved(id) {
+    if (Auth.mode === "supabase") {
+      if (!state.user) {
+        openAuth("login", "Entre para salvar vagas na sua conta.");
+        return;
+      }
+      if (!state.companyJobs.some(function (job) { return job.id === id; })) return;
+      var isSaved = state.saved.indexOf(id) > -1;
+      var request = isSaved ? provider.removeSavedJob(state.user.uid, id) : provider.saveJob(state.user.uid, id);
+      request.then(function () {
+        state.saved = isSaved ? state.saved.filter(function (savedId) { return savedId !== id; }) : state.saved.concat([id]);
+        renderJobs();
+      }).catch(function (err) { toast(Auth.explain(err), "error"); });
+      return;
+    }
     var next = state.saved.slice(), pos = next.indexOf(id);
     if (pos > -1) next.splice(pos, 1); else next.push(id);
     if (writeList("salvas", next)) { state.saved = next; renderJobs(); }
@@ -463,6 +516,11 @@
       setBusy(form, true, "Criando conta…");
       provider.signUp(v.email, v.senha, profile)
         .then(function (user) {
+          if (user.needsConfirmation) {
+            closeAuth();
+            toast("Conta criada. Confirme seu e-mail antes de entrar.");
+            return;
+          }
           return afterSession(user, role !== "company", "Conta criada! Aproveite para personalizar seu perfil.")
             .then(function () {
               if (role === "company") {
@@ -517,7 +575,7 @@
     });
     $("auth-mode").textContent = Auth.mode === "local"
       ? "Modo demonstração: as contas ficam salvas somente neste navegador."
-      : "";
+      : Auth.mode === "supabase" ? "Contas e vagas compartilhadas pelo Supabase." : "";
     // Limpa o erro de um campo assim que a pessoa o corrige.
     function recheck(e) {
       var f = e.target;
@@ -581,12 +639,13 @@
 
   function finishSession() {
     state.ready = true;
-    loadLists();
-    renderAuthUI();
-    renderJobs();
-    refreshApplyButton();
-    if (state.profile && !$("view-profile").hidden) renderProfile();
-    readyResolve();
+    return loadLists().then(function () {
+      renderAuthUI();
+      renderJobs();
+      refreshApplyButton();
+      if (state.profile && !$("view-profile").hidden) renderProfile();
+      readyResolve();
+    });
   }
 
   function doLogout() {
@@ -674,6 +733,7 @@
       $("company-page-title").textContent = state.profile.nome;
       $("company-page-subtitle").textContent = state.profile.headline || "Gerencie as oportunidades da sua empresa.";
       renderCompanyJobs();
+      renderCompanyApplications();
       window.scrollTo(0, 0);
       $("company-page-title").focus({ preventScroll: true });
     } else if (wasSubpage) {
@@ -784,7 +844,9 @@
     $("company-jobs-count").textContent = ownJobs.length + (ownJobs.length === 1 ? " vaga publicada" : " vagas publicadas");
     $("company-mode-note").textContent = Auth.mode === "local"
       ? "Modo demonstração: suas vagas ficam salvas neste navegador e não aparecem para outros visitantes."
-      : "As vagas publicadas ficam disponíveis na lista pública do site.";
+      : Auth.mode === "supabase"
+        ? "As vagas são armazenadas no Supabase e ficam disponíveis para todos os visitantes."
+        : "As vagas publicadas ficam disponíveis na lista pública do site.";
     if (!ownJobs.length) {
       $("company-jobs-list").innerHTML = '<p class="empty-note">Você ainda não publicou vagas.</p>';
       return;
@@ -793,6 +855,29 @@
       return '<article class="company-listing"><div><h3>' + esc(job.title) + '</h3><p>' + esc(job.city) + " · " + esc(job.mode) + " · " + esc(job.employmentType) + '</p></div>' +
         '<button class="btn ghost sm" type="button" data-delete-job="' + esc(job.id) + '">Remover</button></article>';
     }).join("");
+  }
+
+  function renderCompanyApplications() {
+    var panel = $("company-applications");
+    if (Auth.mode !== "supabase" || !state.user || !state.profile || state.profile.role !== "company") {
+      panel.innerHTML = '<p class="empty-note">As candidaturas aparecerão aqui quando o Supabase estiver configurado.</p>';
+      return;
+    }
+    panel.innerHTML = '<p class="empty-note">Carregando candidaturas…</p>';
+    provider.listCompanyApplications(state.user.uid).then(function (applications) {
+      if (!applications.length) {
+        panel.innerHTML = '<p class="empty-note">Você ainda não recebeu candidaturas.</p>';
+        return;
+      }
+      panel.innerHTML = applications.map(function (application) {
+        return '<article class="company-listing"><div><h3>' + esc(application.candidate_name) + '</h3><p>' +
+          esc(application.candidate_email) + ' · ' + esc(application.jobs.title) + '</p></div><span class="tag">' +
+          esc(new Date(application.created_at).toLocaleDateString("pt-BR")) + '</span></article>';
+      }).join("");
+    }).catch(function (err) {
+      panel.innerHTML = '<p class="empty-note">Não foi possível carregar as candidaturas.</p>';
+      toast(Auth.explain(err), "error");
+    });
   }
 
   function publishJob(e) {

@@ -222,6 +222,12 @@ try{var t=localStorage.getItem("pontec-tema");if(t==="dark"||t==="light")documen
     </form>
     <div class="company-jobs-list" id="company-jobs-list" aria-live="polite"></div>
    </section>
+   <section class="company-board card" aria-labelledby="company-applications-title">
+    <div class="company-board-head">
+      <div><h2 id="company-applications-title">Candidaturas recebidas</h2><p class="muted">Acompanhe quem se candidatou às suas vagas.</p></div>
+    </div>
+    <div id="company-applications" aria-live="polite"><p class="empty-note">As candidaturas aparecerão aqui.</p></div>
+   </section>
  </div>
 </main>
 
@@ -301,6 +307,8 @@ try{var t=localStorage.getItem("pontec-tema");if(t==="dark"||t==="light")documen
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="firebase-config.js"></script>
 <script src="jobs.js"></script>
 <script src="auth.js"></script>

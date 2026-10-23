@@ -6,6 +6,8 @@
 (function () {
   "use strict";
 
+  var supabaseConfig = window.PONTEC_SUPABASE || {};
+  var supabaseReady = !!(supabaseConfig.url && (supabaseConfig.anonKey || supabaseConfig.publishableKey));
   var cfg = window.PONTEC_FIREBASE || {};
   var cfgKeys = Object.keys(cfg);
   var firebaseReady = cfgKeys.length > 0 && cfgKeys.every(function (k) {
@@ -26,7 +28,8 @@
     "crypto/unavailable": "Este navegador bloqueou a criptografia local. Abra o site por HTTPS ou localhost.",
     "storage/unavailable": "Não foi possível salvar neste navegador. Verifique as permissões de armazenamento.",
     "permission-denied": "O Firestore recusou a operação. Publique as regras de firestore.rules.",
-    "unavailable": "O Firebase está indisponível no momento. Tente novamente."
+    "unavailable": "O Firebase está indisponível no momento. Tente novamente.",
+    "supabase/sdk-unavailable": "Não foi possível carregar o SDK do Supabase. Verifique a conexão e recarregue a página."
   };
 
   function authError(code, message) {
@@ -313,9 +316,167 @@
     }
   };
 
+  /* ---------- Provedor Supabase ---------- */
+  var sbClient = null;
+
+  function getSupabase() {
+    if (sbClient) return sbClient;
+    if (!window.supabase || typeof window.supabase.createClient !== "function") {
+      throw authError("supabase/sdk-unavailable");
+    }
+    sbClient = window.supabase.createClient(
+      supabaseConfig.url,
+      supabaseConfig.anonKey || supabaseConfig.publishableKey
+    );
+    return sbClient;
+  }
+
+  function sbUser(user) {
+    return user ? { uid: user.id, email: user.email || "", displayName: user.user_metadata && user.user_metadata.nome || "" } : null;
+  }
+
+  function profileFromRow(row) {
+    if (!row) return null;
+    return Object.assign({}, row, { uid: row.id });
+  }
+
+  function jobFromRow(row) {
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      companyName: row.company_name,
+      title: row.title,
+      area: row.area,
+      city: row.city,
+      mode: row.mode,
+      employmentType: row.employment_type,
+      salary: row.salary,
+      description: row.description,
+      color: row.color || "#0f6b57",
+      createdAt: row.created_at
+    };
+  }
+
+  function unwrap(result) {
+    if (result.error) throw result.error;
+    return result.data;
+  }
+
+  var supabaseProvider = {
+    mode: "supabase",
+    canReset: true,
+    start: function (cb) {
+      var client = getSupabase();
+      return client.auth.getSession().then(function (result) {
+        var session = unwrap(result);
+        cb(sbUser(session && session.session ? session.session.user : null));
+        client.auth.onAuthStateChange(function (event, nextSession) {
+          if (event !== "INITIAL_SESSION") setTimeout(function () {
+            cb(sbUser(nextSession ? nextSession.user : null));
+          }, 0);
+        });
+      });
+    },
+    signUp: function (email, password, profile) {
+      var client = getSupabase();
+      return client.auth.signUp({
+        email: email,
+        password: password,
+        options: { data: profile }
+      }).then(function (result) {
+        var data = unwrap(result);
+        if (!data.user) throw authError("auth/invalid-credential");
+        var user = sbUser(data.user);
+        if (!data.session) user.needsConfirmation = true;
+        return user;
+      });
+    },
+    signIn: function (email, password) {
+      return getSupabase().auth.signInWithPassword({ email: email, password: password })
+        .then(function (result) { return sbUser(unwrap(result).user); });
+    },
+    signOut: function () {
+      return getSupabase().auth.signOut().then(unwrap);
+    },
+    getProfile: function (uid) {
+      return getSupabase().from("profiles").select("*").eq("id", uid).maybeSingle()
+        .then(function (result) { return profileFromRow(unwrap(result)); });
+    },
+    ensureProfile: function (user) {
+      return supabaseProvider.getProfile(user.uid).then(function (profile) {
+        if (!profile) throw authError("profile/missing", "O perfil não foi criado. Confira se o SQL do Supabase foi executado.");
+        return profile;
+      });
+    },
+    saveProfile: function (uid, changes) {
+      var payload = Object.assign({}, changes, { updated_at: new Date().toISOString() });
+      return getSupabase().from("profiles").update(payload).eq("id", uid).select("*").single()
+        .then(function (result) { return profileFromRow(unwrap(result)); });
+    },
+    listJobs: function () {
+      return getSupabase().from("jobs").select("*").eq("status", "open").order("created_at", { ascending: false })
+        .then(function (result) { return unwrap(result).map(jobFromRow); });
+    },
+    createJob: function (uid, job) {
+      var row = {
+        company_id: uid,
+        company_name: job.companyName,
+        title: job.title,
+        area: job.area,
+        city: job.city,
+        mode: job.mode,
+        employment_type: job.employmentType,
+        salary: job.salary || "A combinar",
+        description: job.description,
+        status: "open"
+      };
+      return getSupabase().from("jobs").insert(row).select("*").single()
+        .then(function (result) { return jobFromRow(unwrap(result)); });
+    },
+    deleteJob: function (uid, id) {
+      return getSupabase().from("jobs").delete().eq("id", id).eq("company_id", uid).select("id").maybeSingle()
+        .then(function (result) {
+          if (!unwrap(result)) throw authError("permission-denied", "A vaga não existe ou não pertence à sua empresa.");
+        });
+    },
+    listSaved: function (uid) {
+      return getSupabase().from("saved_jobs").select("job_id").eq("user_id", uid)
+        .then(function (result) { return unwrap(result).map(function (row) { return row.job_id; }); });
+    },
+    saveJob: function (uid, jobId) {
+      return getSupabase().from("saved_jobs").insert({ user_id: uid, job_id: jobId }).then(unwrap);
+    },
+    removeSavedJob: function (uid, jobId) {
+      return getSupabase().from("saved_jobs").delete().eq("user_id", uid).eq("job_id", jobId).then(unwrap);
+    },
+    listApplications: function (uid) {
+      return getSupabase().from("applications").select("job_id").eq("candidate_id", uid)
+        .then(function (result) { return unwrap(result).map(function (row) { return row.job_id; }); });
+    },
+    listCompanyApplications: function (uid) {
+      return getSupabase().from("applications")
+        .select("id,job_id,candidate_name,candidate_email,created_at,jobs!inner(title,company_id)")
+        .eq("jobs.company_id", uid)
+        .order("created_at", { ascending: false })
+        .then(function (result) { return unwrap(result); });
+    },
+    applyToJob: function (uid, jobId, profile, email) {
+      var row = {
+        candidate_id: uid,
+        job_id: jobId,
+        candidate_name: profile.nome,
+        candidate_email: email
+      };
+      return getSupabase().from("applications").insert(row).then(unwrap);
+    },
+    resetPassword: function (email) {
+      return getSupabase().auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+    }
+  };
+
   window.PontecAuth = {
-    mode: firebaseReady ? "firebase" : "local",
-    provider: firebaseReady ? firebase : local,
+    mode: supabaseReady ? "supabase" : firebaseReady ? "firebase" : "local",
+    provider: supabaseReady ? supabaseProvider : firebaseReady ? firebase : local,
     explain: explain
   };
 })();
