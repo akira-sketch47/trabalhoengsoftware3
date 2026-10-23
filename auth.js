@@ -23,8 +23,8 @@
     "auth/too-many-requests": "Muitas tentativas. Aguarde um pouco e tente de novo.",
     "auth/operation-not-allowed": "Ative o método E-mail/senha no Firebase Authentication.",
     "email_not_confirmed": "Confirme o e-mail da conta ou desative “Confirm email” em Supabase > Authentication > Providers > Email.",
-    "over_email_send_rate_limit": "O Supabase limitou temporariamente o envio de e-mails deste projeto. Aguarde antes de tentar novamente. Se a conta já tiver sido criada, use a aba Entrar. Para evitar novos bloqueios, configure um SMTP próprio em Supabase > Project Settings > Authentication > SMTP Settings.",
-    "email_rate_limit_exceeded": "O Supabase limitou temporariamente o envio de e-mails deste projeto. Aguarde antes de tentar novamente. Se a conta já tiver sido criada, use a aba Entrar. Para evitar novos bloqueios, configure um SMTP próprio em Supabase > Project Settings > Authentication > SMTP Settings.",
+    "over_email_send_rate_limit": "O Supabase ainda está tentando enviar e-mails. Desative “Confirm email” em Supabase > Authentication > Providers > Email para o cadastro não exigir confirmação. Se já desativou, aguarde o limite temporário liberar e tente novamente. Se a conta já foi criada, use a aba Entrar.",
+    "email_rate_limit_exceeded": "O Supabase ainda está tentando enviar e-mails. Desative “Confirm email” em Supabase > Authentication > Providers > Email para o cadastro não exigir confirmação. Se já desativou, aguarde o limite temporário liberar e tente novamente. Se a conta já foi criada, use a aba Entrar.",
     "auth/weak-password": "A senha precisa ter pelo menos 8 caracteres.",
     "auth/network-request-failed": "Falha de conexão. Verifique a internet e tente novamente.",
     "auth/unsupported": "Recurso disponível apenas com o Firebase configurado.",
@@ -197,8 +197,7 @@
         try { localStorage.setItem(JOBS_KEY, JSON.stringify(next)); }
         catch (e) { throw authError("storage/unavailable"); }
       });
-    },
-    resetPassword: function () { return Promise.reject(authError("auth/unsupported")); }
+    }
   };
 
   /* ---------- Provedor Firebase ---------- */
@@ -231,7 +230,7 @@
 
   var firebase = {
     mode: "firebase",
-    canReset: true,
+    canReset: false,
     start: function (cb) {
       return loadFirebase().then(function () {
         fbListeners.push(cb);
@@ -316,9 +315,6 @@
         if (!fb.auth.currentUser || fb.auth.currentUser.uid !== uid) throw authError("permission-denied");
         return fb.F.deleteDoc(fb.F.doc(fb.db, "jobs", id));
       });
-    },
-    resetPassword: function (email) {
-      return loadFirebase().then(function () { return fb.A.sendPasswordResetEmail(fb.auth, email); });
     }
   };
 
@@ -370,7 +366,7 @@
 
   var supabaseProvider = {
     mode: "supabase",
-    canReset: true,
+    canReset: false,
     start: function (cb) {
       var client = getSupabase();
       return client.auth.getSession().then(function (result) {
@@ -513,9 +509,6 @@
         candidate_email: email
       };
       return getSupabase().from("applications").insert(row).then(unwrap);
-    },
-    resetPassword: function (email) {
-      return getSupabase().auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
     }
   };
 

@@ -571,18 +571,6 @@
     $$(".pw-toggle").forEach(function (b) {
       b.addEventListener("click", function () { setPwVisible(b, b.getAttribute("aria-pressed") !== "true"); });
     });
-    $("forgot").hidden = !provider.canReset;
-    $("forgot").addEventListener("click", function () {
-      var email = $("l-email").value.trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        $("l-email").focus();
-        showAuthError("Digite seu e-mail no campo acima para receber o link de redefinição.");
-        return;
-      }
-      provider.resetPassword(email)
-        .then(function () { $("auth-error").hidden = true; toast("Se houver uma conta com esse e-mail, enviamos o link de redefinição."); })
-        .catch(function (err) { showAuthError(Auth.explain(err)); });
-    });
     $("auth-mode").textContent = Auth.mode === "local"
       ? "Modo demonstração: as contas ficam salvas somente neste navegador."
       : Auth.mode === "supabase" ? "Contas e vagas compartilhadas pelo Supabase." : "";

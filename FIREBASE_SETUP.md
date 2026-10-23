@@ -28,6 +28,6 @@ Quando a configuração está preenchida, o site passa a usar o Firebase automat
 
 - A foto de perfil é recortada em quadrado (256 px) e guardada como imagem pequena (cerca de 20 a 40 KB) dentro do próprio documento do perfil, então **não precisa do Firebase Storage**.
 - Se o perfil não puder ser salvo durante o cadastro, a conta recém-criada é removida para você tentar de novo sem ficar com uma conta sem perfil.
-- O link "Esqueci minha senha" só aparece no modo Firebase.
+- O portal não oferece recuperação de senha por e-mail.
 - A configuração do app Web contém identificadores públicos. Nunca coloque senhas, chaves de conta de serviço ou outras credenciais privadas no repositório.
 - As regras permitem que cada usuário leia e altere apenas o próprio documento `profiles/{uid}`. Vagas em `jobs/{jobId}` podem ser lidas publicamente, mas só empresas autenticadas podem publicar ou remover as próprias vagas.
