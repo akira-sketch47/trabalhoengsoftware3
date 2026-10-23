@@ -230,6 +230,10 @@ dialog[open]{animation:pop .18s ease-out}
 .company-listing p,.empty-note{margin-top:4px;color:var(--muted);font-size:.9rem}
 .company-listing>div{min-width:0}
 .company-listing h3,.company-listing p{overflow-wrap:anywhere}
+.company-listing .btn-row{flex-wrap:wrap;justify-content:flex-end}
+.notification-unread{background:var(--surface-2);padding-left:10px;padding-right:10px;border-radius:10px}
+.candidate-profile{display:grid;gap:8px;overflow-wrap:anywhere}
+.candidate-profile p{margin:0}
 
 /* ---------- Responsivo ---------- */
 @media(max-width:860px){

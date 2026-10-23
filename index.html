@@ -37,6 +37,7 @@ try{var t=localStorage.getItem("pontec-tema");if(t==="dark"||t==="light")documen
     </button>
     <div class="menu" id="menu" hidden>
      <a href="#perfil" id="menu-profile">Meu perfil</a>
+     <button type="button" id="notifications-open">Notificações <span class="badge" id="notifications-count" hidden>0</span></button>
      <button type="button" id="menu-logout">Sair</button>
     </div>
    </div>
@@ -302,6 +303,23 @@ try{var t=localStorage.getItem("pontec-tema");if(t==="dark"||t==="light")documen
    <button class="btn ghost" type="button" id="jd-close">Fechar</button>
    <button class="btn" type="button" id="jd-apply">Candidatar-se</button>
   </div>
+ </div>
+</dialog>
+
+<dialog id="notifications-dlg" aria-labelledby="notifications-title">
+ <div class="dlg-body">
+  <button class="dlg-x icon-btn" type="button" id="notifications-close" aria-label="Fechar notificações">×</button>
+  <h2 id="notifications-title">Notificações</h2>
+  <div id="notifications-list" aria-live="polite"><p class="empty-note">Carregando notificações…</p></div>
+  <div class="btn-row end"><button class="btn ghost" id="notifications-mark-read" type="button">Marcar todas como lidas</button></div>
+ </div>
+</dialog>
+
+<dialog id="candidate-profile-dlg" aria-labelledby="candidate-profile-title">
+ <div class="dlg-body">
+  <button class="dlg-x icon-btn" type="button" id="candidate-profile-close" aria-label="Fechar perfil">×</button>
+  <h2 id="candidate-profile-title">Perfil do candidato</h2>
+  <div id="candidate-profile-content"></div>
  </div>
 </dialog>
 

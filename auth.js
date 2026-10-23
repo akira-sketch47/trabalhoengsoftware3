@@ -22,6 +22,7 @@
     "auth/wrong-password": "E-mail ou senha incorretos.",
     "auth/too-many-requests": "Muitas tentativas. Aguarde um pouco e tente de novo.",
     "auth/operation-not-allowed": "Ative o método E-mail/senha no Firebase Authentication.",
+    "email_not_confirmed": "Confirme o e-mail da conta ou desative “Confirm email” em Supabase > Authentication > Providers > Email.",
     "auth/weak-password": "A senha precisa ter pelo menos 8 caracteres.",
     "auth/network-request-failed": "Falha de conexão. Verifique a internet e tente novamente.",
     "auth/unsupported": "Recurso disponível apenas com o Firebase configurado.",
@@ -450,15 +451,54 @@
       return getSupabase().from("saved_jobs").delete().eq("user_id", uid).eq("job_id", jobId).then(unwrap);
     },
     listApplications: function (uid) {
-      return getSupabase().from("applications").select("job_id").eq("candidate_id", uid)
-        .then(function (result) { return unwrap(result).map(function (row) { return row.job_id; }); });
+      return getSupabase().from("applications")
+        .select("id,job_id,status,created_at,updated_at,jobs(title,company_name)")
+        .eq("candidate_id", uid)
+        .order("created_at", { ascending: false })
+        .then(function (result) { return unwrap(result); });
     },
     listCompanyApplications: function (uid) {
       return getSupabase().from("applications")
-        .select("id,job_id,candidate_name,candidate_email,created_at,jobs!inner(title,company_id)")
+        .select("id,job_id,status,created_at,candidate_name,candidate_email,jobs!inner(title,company_id),profiles!applications_candidate_id_fkey(id,nome,email,tel,cidade,area,esc,sobre,headline,skills,link,avatar,color)")
         .eq("jobs.company_id", uid)
         .order("created_at", { ascending: false })
         .then(function (result) { return unwrap(result); });
+    },
+    updateApplicationStatus: function (applicationId, status) {
+      return getSupabase().from("applications")
+        .update({ status: status, updated_at: new Date().toISOString() })
+        .eq("id", applicationId)
+        .select("id,status")
+        .single()
+        .then(unwrap);
+    },
+    listNotifications: function (uid) {
+      return getSupabase().from("notifications")
+        .select("id,application_id,kind,message,created_at,read_at")
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false })
+        .limit(50)
+        .then(unwrap);
+    },
+    markNotificationsRead: function (uid, notificationIds) {
+      if (!notificationIds.length) return Promise.resolve();
+      return getSupabase().from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("user_id", uid)
+        .in("id", notificationIds)
+        .is("read_at", null)
+        .then(unwrap);
+    },
+    subscribeToUpdates: function (uid, callback) {
+      return getSupabase().channel("user-updates-" + uid)
+        .on("postgres_changes", {
+          event: "*", schema: "public", table: "notifications", filter: "user_id=eq." + uid
+        }, callback)
+        .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, callback)
+        .subscribe();
+    },
+    unsubscribeFromUpdates: function (channel) {
+      return channel ? getSupabase().removeChannel(channel) : Promise.resolve("ok");
     },
     applyToJob: function (uid, jobId, profile, email) {
       var row = {

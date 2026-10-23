@@ -14,11 +14,12 @@
     });
   }
 
-  var state = { user: null, profile: null, ready: false, area: "", tab: "todas", saved: [], applied: [], companyJobs: [], companyIntent: false };
+  var state = { user: null, profile: null, ready: false, area: "", tab: "todas", saved: [], applied: [], applicationStatuses: {}, notifications: [], companyJobs: [], companyIntent: false };
   var draft = { avatar: "", color: "", skills: [] };
   var readyResolve;
   var readyPromise = new Promise(function (r) { readyResolve = r; });
   var sessionSeq = 0;
+  var updatesChannel = null;
 
   var COLORS = [
     ["#0f6b57", "Verde"], ["#2f6fd6", "Azul"], ["#7b2fd6", "Roxo"], ["#d62f4f", "Vermelho"],
@@ -161,11 +162,15 @@
     if (Auth.mode !== "supabase") {
       state.saved = readList("salvas");
       state.applied = readList("candidaturas");
+      state.applicationStatuses = {};
+      state.notifications = [];
       return Promise.resolve();
     }
     if (!state.user) {
       state.saved = [];
       state.applied = [];
+      state.applicationStatuses = {};
+      state.notifications = [];
       return Promise.resolve();
     }
     var savedRequest = provider.listSaved(state.user.uid);
@@ -173,10 +178,13 @@
       ? provider.listApplications(state.user.uid) : Promise.resolve([]);
     return Promise.all([savedRequest, appliedRequest]).then(function (lists) {
       state.saved = lists[0];
-      state.applied = lists[1];
+      state.applied = lists[1].map(function (application) { return application.job_id; });
+      state.applicationStatuses = {};
+      lists[1].forEach(function (application) { state.applicationStatuses[application.job_id] = application.status; });
     }).catch(function (err) {
       state.saved = [];
       state.applied = [];
+      state.applicationStatuses = {};
       toast(Auth.explain(err), "error");
     });
   }
@@ -297,10 +305,12 @@
     }
     $("lista").innerHTML = list.map(function (j) {
       var saved = state.saved.indexOf(j.id) > -1, applied = state.applied.indexOf(j.id) > -1;
+      var applicationStatus = state.applicationStatuses[j.id];
       var canPersist = Auth.mode !== "supabase" || state.companyJobs.some(function (job) { return job.id === j.id; });
       return '<article class="job"><div class="co-logo" style="background:' + esc(j.cor) + '" aria-hidden="true">' + esc(j.c[0]) + "</div>" +
         '<div><h3>' + esc(j.t) + '</h3><p class="job-co">' + esc(j.c) + " – " + esc(j.l) + '</p><div class="tags"><span class="tag">' +
         esc(j.m) + '</span><span class="tag">' + esc(j.tipo) + '</span><span class="tag">' + esc(j.a) + "</span>" +
+        (applicationStatus ? '<span class="tag">' + esc(applicationStatus === "accepted" ? "Candidatura aceita" : applicationStatus === "rejected" ? "Não selecionada" : "Em análise") + "</span>" : "") +
         (applied ? '<span class="tag ok">Candidatura enviada</span>' : "") + "</div></div>" +
         '<div class="job-side"><span class="sal">' + esc(j.s) + '</span><div class="job-actions">' +
         '<button class="icon-btn fav" type="button" data-fav="' + j.id + '" aria-pressed="' + saved + '" aria-label="' + (saved ? "Remover " : "Salvar ") + esc(j.t) + (saved ? " das vagas salvas" : " nas vagas salvas") + '"' + (canPersist ? "" : ' disabled title="Vaga de exemplo; interações reais estão disponíveis para vagas publicadas"') + '>' +
@@ -518,7 +528,7 @@
         .then(function (user) {
           if (user.needsConfirmation) {
             closeAuth();
-            toast("Conta criada. Confirme seu e-mail antes de entrar.");
+            toast("Para criar contas sem confirmação, desative “Confirm email” em Supabase > Authentication > Providers > Email. Depois tente novamente.", "error");
             return;
           }
           return afterSession(user, role !== "company", "Conta criada! Aproveite para personalizar seu perfil.")
@@ -603,6 +613,9 @@
     $("guest-actions").hidden = !state.ready || signed;
     $("user-menu").hidden = !signed;
     $("cta").hidden = signed || !state.ready;
+    var unreadNotifications = state.notifications.filter(function (notification) { return !notification.read_at; }).length;
+    $("notifications-count").hidden = !signed || !unreadNotifications;
+    $("notifications-count").textContent = unreadNotifications;
     if (signed) {
       paintAvatar($("hd-avatar"), state.profile);
       $("hd-name").textContent = firstName(state.profile.nome);
@@ -610,6 +623,65 @@
     } else {
       closeMenu();
     }
+  }
+
+  function renderNotifications() {
+    var list = $("notifications-list");
+    var unread = state.notifications.filter(function (notification) { return !notification.read_at; });
+    $("notifications-count").textContent = unread.length;
+    $("notifications-count").hidden = !unread.length;
+    $("notifications-mark-read").hidden = !unread.length;
+    if (!state.notifications.length) {
+      list.innerHTML = '<p class="empty-note">Você ainda não tem notificações.</p>';
+      return;
+    }
+    list.innerHTML = state.notifications.map(function (notification) {
+      return '<article class="company-listing' + (notification.read_at ? "" : " notification-unread") + '"><div><h3>' +
+        esc(notification.message) + '</h3><p>' + esc(new Date(notification.created_at).toLocaleString("pt-BR")) +
+        '</p></div><span class="tag">' + (notification.read_at ? "Lida" : "Nova") + "</span></article>";
+    }).join("");
+  }
+
+  function loadNotifications() {
+    if (Auth.mode !== "supabase" || !state.user) {
+      state.notifications = [];
+      return Promise.resolve();
+    }
+    return provider.listNotifications(state.user.uid).then(function (notifications) {
+      state.notifications = notifications;
+      renderAuthUI();
+      renderNotifications();
+    }).catch(function (err) {
+      toast(Auth.explain(err), "error");
+    });
+  }
+
+  function startRealtimeUpdates() {
+    stopRealtimeUpdates();
+    if (Auth.mode !== "supabase" || !state.user) return;
+    updatesChannel = provider.subscribeToUpdates(state.user.uid, function (payload) {
+      if (payload && payload.table === "notifications" && payload.eventType === "INSERT" && payload.new) {
+        toast(payload.new.message);
+      }
+      loadNotifications();
+      loadLists().then(function () { renderJobs(); refreshApplyButton(); });
+      if (state.profile && state.profile.role === "company") renderCompanyApplications();
+    });
+  }
+
+  function stopRealtimeUpdates() {
+    if (!updatesChannel || Auth.mode !== "supabase") return;
+    provider.unsubscribeFromUpdates(updatesChannel);
+    updatesChannel = null;
+  }
+
+  function markAllNotificationsRead() {
+    if (!state.user) return;
+    var ids = state.notifications.filter(function (notification) { return !notification.read_at; })
+      .map(function (notification) { return notification.id; });
+    provider.markNotificationsRead(state.user.uid, ids).then(function () {
+      return loadNotifications();
+    }).catch(function (err) { toast(Auth.explain(err), "error"); });
   }
 
   function applySession(user) {
@@ -640,6 +712,14 @@
   function finishSession() {
     state.ready = true;
     return loadLists().then(function () {
+      if (Auth.mode === "supabase" && state.user) {
+        return loadNotifications().then(function () {
+          startRealtimeUpdates();
+        });
+      }
+      stopRealtimeUpdates();
+      state.notifications = [];
+    }).then(function () {
       renderAuthUI();
       renderJobs();
       refreshApplyButton();
@@ -651,6 +731,8 @@
   function doLogout() {
     closeMenu();
     provider.signOut().then(function () {
+      stopRealtimeUpdates();
+      state.notifications = [];
       toast("Você saiu da conta.");
       if (location.hash === "#perfil") history.replaceState(null, "", location.pathname + location.search);
       route();
@@ -676,6 +758,20 @@
       if (e.key === "Escape" && !$("menu").hidden) { closeMenu(); $("user-btn").focus(); }
     });
     $("menu-profile").addEventListener("click", closeMenu);
+    $("notifications-open").addEventListener("click", function () {
+      closeMenu();
+      renderNotifications();
+      $("notifications-dlg").showModal();
+    });
+    $("notifications-close").addEventListener("click", function () { $("notifications-dlg").close(); });
+    $("notifications-dlg").addEventListener("click", function (e) {
+      if (e.target === $("notifications-dlg")) $("notifications-dlg").close();
+    });
+    $("notifications-mark-read").addEventListener("click", markAllNotificationsRead);
+    $("candidate-profile-close").addEventListener("click", function () { $("candidate-profile-dlg").close(); });
+    $("candidate-profile-dlg").addEventListener("click", function (e) {
+      if (e.target === $("candidate-profile-dlg")) $("candidate-profile-dlg").close();
+    });
     $("menu-logout").addEventListener("click", doLogout);
     $("pf-logout").addEventListener("click", doLogout);
   }
@@ -860,22 +956,70 @@
   function renderCompanyApplications() {
     var panel = $("company-applications");
     if (Auth.mode !== "supabase" || !state.user || !state.profile || state.profile.role !== "company") {
+      panel.dataset.applications = "[]";
       panel.innerHTML = '<p class="empty-note">As candidaturas aparecerão aqui quando o Supabase estiver configurado.</p>';
       return;
     }
+    panel.dataset.applications = "[]";
     panel.innerHTML = '<p class="empty-note">Carregando candidaturas…</p>';
     provider.listCompanyApplications(state.user.uid).then(function (applications) {
       if (!applications.length) {
+        panel.dataset.applications = "[]";
         panel.innerHTML = '<p class="empty-note">Você ainda não recebeu candidaturas.</p>';
         return;
       }
       panel.innerHTML = applications.map(function (application) {
-        return '<article class="company-listing"><div><h3>' + esc(application.candidate_name) + '</h3><p>' +
-          esc(application.candidate_email) + ' · ' + esc(application.jobs.title) + '</p></div><span class="tag">' +
-          esc(new Date(application.created_at).toLocaleDateString("pt-BR")) + '</span></article>';
+        var statusLabel = application.status === "accepted" ? "Aceita" : application.status === "rejected" ? "Não selecionada" : "Em análise";
+        return '<article class="company-listing application-listing"><div><h3>' + esc(application.candidate_name) + '</h3><p>' +
+          esc(application.candidate_email) + ' · ' + esc(application.jobs.title) + '</p><span class="tag">' + statusLabel +
+          '</span> <span class="tag">' + esc(new Date(application.created_at).toLocaleDateString("pt-BR")) + '</span></div>' +
+          '<div class="btn-row"><button class="btn ghost sm" type="button" data-view-candidate="' + esc(application.id) + '">Ver perfil</button>' +
+          (application.status === "pending"
+            ? '<button class="btn sm" type="button" data-review-application="' + esc(application.id) + '" data-status="accepted">Aceitar</button>' +
+              '<button class="btn ghost sm" type="button" data-review-application="' + esc(application.id) + '" data-status="rejected">Recusar</button>'
+            : "") + "</div></article>";
       }).join("");
+      panel.dataset.applications = JSON.stringify(applications);
     }).catch(function (err) {
       panel.innerHTML = '<p class="empty-note">Não foi possível carregar as candidaturas.</p>';
+      toast(Auth.explain(err), "error");
+    });
+  }
+
+  function showCandidateProfile(applicationId) {
+    var applications = [];
+    try { applications = JSON.parse($("company-applications").dataset.applications || "[]"); }
+    catch (e) { toast("Não foi possível carregar o perfil desta candidatura.", "error"); return; }
+    var application = applications.filter(function (item) { return item.id === applicationId; })[0];
+    if (!application || !application.profiles) {
+      toast("O perfil do candidato não está disponível. Verifique se executou a versão atualizada do SQL.", "error");
+      return;
+    }
+    var profile = application.profiles;
+    var link = normalizeUrl(profile.link);
+    $("candidate-profile-content").innerHTML =
+      '<div class="candidate-profile"><h3>' + esc(profile.nome || application.candidate_name) + '</h3>' +
+      (profile.headline ? '<p class="muted">' + esc(profile.headline) + '</p>' : "") +
+      '<p><strong>E-mail:</strong> ' + esc(profile.email || application.candidate_email) + '</p>' +
+      (profile.tel ? '<p><strong>Telefone:</strong> ' + esc(profile.tel) + '</p>' : "") +
+      (profile.cidade ? '<p><strong>Cidade:</strong> ' + esc(profile.cidade) + '</p>' : "") +
+      (profile.area ? '<p><strong>Área:</strong> ' + esc(profile.area) + '</p>' : "") +
+      (profile.esc ? '<p><strong>Escolaridade:</strong> ' + esc(profile.esc) + '</p>' : "") +
+      (profile.sobre ? '<p><strong>Sobre:</strong> ' + esc(profile.sobre) + '</p>' : "") +
+      (profile.skills && profile.skills.length ? '<p><strong>Habilidades:</strong> ' + esc(profile.skills.join(", ")) + '</p>' : "") +
+      (link ? '<p><strong>Link:</strong> <a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(link) + '</a></p>' : "") +
+      "</div>";
+    $("candidate-profile-dlg").showModal();
+  }
+
+  function reviewApplication(applicationId, status, button) {
+    if (status !== "accepted" && status !== "rejected") return;
+    button.disabled = true;
+    provider.updateApplicationStatus(applicationId, status).then(function () {
+      toast(status === "accepted" ? "Candidatura aceita. O candidato será notificado." : "Candidatura recusada. O candidato será notificado.");
+      renderCompanyApplications();
+    }).catch(function (err) {
+      button.disabled = false;
       toast(Auth.explain(err), "error");
     });
   }
@@ -1033,6 +1177,12 @@
     var form = $("profile-form");
     form.addEventListener("submit", saveProfile);
     $("job-form").addEventListener("submit", publishJob);
+    $("company-applications").addEventListener("click", function (event) {
+      var profileButton = event.target.closest("[data-view-candidate]");
+      if (profileButton) { showCandidateProfile(profileButton.dataset.viewCandidate); return; }
+      var reviewButton = event.target.closest("[data-review-application]");
+      if (reviewButton) reviewApplication(reviewButton.dataset.reviewApplication, reviewButton.dataset.status, reviewButton);
+    });
     $("company-jobs-list").addEventListener("click", function (e) {
       var button = e.target.closest("[data-delete-job]");
       if (button) deleteCompanyJob(button.dataset.deleteJob);

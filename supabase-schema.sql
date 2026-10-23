@@ -55,8 +55,26 @@ create table if not exists public.applications (
   candidate_id uuid not null references public.profiles (id) on delete cascade,
   candidate_name text not null check (char_length(candidate_name) between 1 and 120),
   candidate_email text not null,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'rejected')),
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   unique (job_id, candidate_id)
+);
+
+alter table public.applications add column if not exists status text not null default 'pending';
+alter table public.applications add column if not exists updated_at timestamptz not null default now();
+alter table public.applications drop constraint if exists applications_status_check;
+alter table public.applications add constraint applications_status_check
+  check (status in ('pending', 'accepted', 'rejected'));
+
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  application_id uuid references public.applications (id) on delete cascade,
+  kind text not null check (kind in ('new_application', 'application_accepted', 'application_rejected')),
+  message text not null check (char_length(message) between 1 and 300),
+  created_at timestamptz not null default now(),
+  read_at timestamptz
 );
 
 create index if not exists jobs_status_created_at_idx
@@ -64,6 +82,8 @@ create index if not exists jobs_status_created_at_idx
 create index if not exists jobs_company_id_idx on public.jobs (company_id);
 create index if not exists applications_candidate_id_idx on public.applications (candidate_id);
 create index if not exists applications_job_id_idx on public.applications (job_id);
+create index if not exists notifications_user_created_at_idx
+  on public.notifications (user_id, created_at desc);
 
 create or replace function public.create_profile_for_new_user()
 returns trigger
@@ -106,10 +126,66 @@ create trigger on_auth_user_created_profile
   after insert on auth.users
   for each row execute function public.create_profile_for_new_user();
 
+create or replace function public.notify_application_changes()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_company_id uuid;
+  target_job_title text;
+begin
+  select jobs.company_id, jobs.title
+    into target_company_id, target_job_title
+    from public.jobs
+    where jobs.id = new.job_id;
+
+  if tg_op = 'INSERT' then
+    insert into public.notifications (user_id, application_id, kind, message)
+    values (
+      target_company_id,
+      new.id,
+      'new_application',
+      new.candidate_name || ' se candidatou para ' || target_job_title || '.'
+    );
+  elsif new.status is distinct from old.status then
+    insert into public.notifications (user_id, application_id, kind, message)
+    values (
+      new.candidate_id,
+      new.id,
+      case new.status
+        when 'accepted' then 'application_accepted'
+        else 'application_rejected'
+      end,
+      case new.status
+        when 'accepted' then 'Sua candidatura para ' || target_job_title || ' foi aceita.'
+        else 'Sua candidatura para ' || target_job_title || ' não foi selecionada.'
+      end
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_application_created_notify on public.applications;
+create trigger on_application_created_notify
+  after insert on public.applications
+  for each row execute function public.notify_application_changes();
+
+drop trigger if exists on_application_status_changed_notify on public.applications;
+create trigger on_application_status_changed_notify
+  after update of status on public.applications
+  for each row execute function public.notify_application_changes();
+
 alter table public.profiles enable row level security;
 alter table public.jobs enable row level security;
 alter table public.saved_jobs enable row level security;
 alter table public.applications enable row level security;
+alter table public.notifications enable row level security;
+alter table public.applications replica identity full;
+alter table public.notifications replica identity full;
 
 grant select on public.profiles to authenticated;
 grant update (nome, tel, cidade, area, esc, sobre, cnpj, setor, resp, "desc", headline, skills, link, avatar, color, updated_at)
@@ -118,11 +194,22 @@ grant select on public.jobs to anon, authenticated;
 grant insert, update, delete on public.jobs to authenticated;
 grant select, insert, delete on public.saved_jobs to authenticated;
 grant select, insert, delete on public.applications to authenticated;
+grant update (status, updated_at) on public.applications to authenticated;
+grant select, update (read_at) on public.notifications to authenticated;
 
 drop policy if exists "Users can read their own profile" on public.profiles;
 create policy "Users can read their own profile"
   on public.profiles for select to authenticated
-  using (id = (select auth.uid()));
+  using (
+    id = (select auth.uid())
+    or exists (
+      select 1
+      from public.applications
+      join public.jobs on jobs.id = applications.job_id
+      where applications.candidate_id = profiles.id
+        and jobs.company_id = (select auth.uid())
+    )
+  );
 
 drop policy if exists "Users can update their own profile" on public.profiles;
 create policy "Users can update their own profile"
@@ -230,7 +317,59 @@ create policy "Candidates can apply to open jobs"
     )
   );
 
+drop policy if exists "Companies can review applications" on public.applications;
+create policy "Companies can review applications"
+  on public.applications for update to authenticated
+  using (
+    status = 'pending'
+    and exists (
+      select 1 from public.jobs
+      where jobs.id = applications.job_id
+        and jobs.company_id = (select auth.uid())
+    )
+  )
+  with check (
+    status in ('accepted', 'rejected')
+    and exists (
+      select 1 from public.jobs
+      where jobs.id = applications.job_id
+        and jobs.company_id = (select auth.uid())
+    )
+  );
+
 drop policy if exists "Candidates can withdraw their applications" on public.applications;
 create policy "Candidates can withdraw their applications"
   on public.applications for delete to authenticated
   using (candidate_id = (select auth.uid()));
+
+drop policy if exists "Users can read their notifications" on public.notifications;
+create policy "Users can read their notifications"
+  on public.notifications for select to authenticated
+  using (user_id = (select auth.uid()));
+
+drop policy if exists "Users can mark their notifications as read" on public.notifications;
+create policy "Users can mark their notifications as read"
+  on public.notifications for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') and not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'notifications'
+  ) then
+    alter publication supabase_realtime add table public.notifications;
+  end if;
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') and not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'applications'
+  ) then
+    alter publication supabase_realtime add table public.applications;
+  end if;
+end;
+$$;
