@@ -88,18 +88,7 @@
   }
 
   function validCnpj(v) {
-    v = digits(v);
-    if (v.length !== 14 || /^(\d)\1+$/.test(v)) return false;
-    function dv(len) {
-      var s = 0, p = len - 7;
-      for (var i = len; i >= 1; i--) {
-        s += Number(v[len - i]) * p--;
-        if (p < 2) p = 9;
-      }
-      var r = s % 11;
-      return r < 2 ? 0 : 11 - r;
-    }
-    return dv(12) === Number(v[12]) && dv(13) === Number(v[13]);
+    return digits(v).length === 14;
   }
 
   function normalizeUrl(v) {
@@ -121,7 +110,7 @@
     switch (f.dataset.v) {
       case "email": if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Informe um e-mail válido."; break;
       case "password": if (v.length < 8) return "Use ao menos 8 caracteres."; break;
-      case "cnpj": if (!validCnpj(v)) return "CNPJ inválido. Confira os 14 números."; break;
+      case "cnpj": if (!validCnpj(v)) return "Digite os 14 números do CNPJ, mesmo que seja fictício."; break;
       case "tel": if (digits(v).length < 10) return "Informe DDD e número."; break;
       case "url": if (normalizeUrl(v) === null) return "Informe um endereço válido, como linkedin.com/in/seu-nome."; break;
     }
