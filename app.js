@@ -518,10 +518,6 @@
     $("auth-mode").textContent = Auth.mode === "local"
       ? "Modo demonstração: as contas ficam salvas somente neste navegador."
       : "";
-    $("mode-note").textContent = Auth.mode === "local"
-      ? "Modo demonstração: contas e perfis ficam salvos só neste navegador. Para contas reais, configure o Firebase (veja FIREBASE_SETUP.md)."
-      : "Contas e perfis são guardados com Firebase Authentication e Cloud Firestore.";
-
     // Limpa o erro de um campo assim que a pessoa o corrige.
     function recheck(e) {
       var f = e.target;
