@@ -213,6 +213,18 @@ dialog[open]{animation:pop .18s ease-out}
 .meter-top{display:flex;justify-content:space-between;font-size:.9rem;font-weight:600}
 .meter-bar{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
 .meter-bar span{display:block;height:100%;width:0;background:var(--brand);border-radius:99px;transition:width .3s}
+.company-board{margin-top:24px}
+.company-board-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.company-board-head h2{font-size:1.35rem}
+.company-board-head p{margin-top:4px}
+.job-publish-form{display:grid;gap:14px;max-width:760px;padding:16px 0 22px;border-bottom:1px solid var(--line)}
+.job-publish-form .grid2{margin:0}
+.company-jobs-list{display:grid;gap:8px;margin-top:16px}
+.company-listing{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.company-listing h3{font-size:1rem}
+.company-listing p,.empty-note{margin-top:4px;color:var(--muted);font-size:.9rem}
+.company-listing>div{min-width:0}
+.company-listing h3,.company-listing p{overflow-wrap:anywhere}
 
 /* ---------- Responsivo ---------- */
 @media(max-width:860px){

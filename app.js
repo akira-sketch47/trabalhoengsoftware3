@@ -14,7 +14,7 @@
     });
   }
 
-  var state = { user: null, profile: null, ready: false, area: "", tab: "todas", saved: [], applied: [] };
+  var state = { user: null, profile: null, ready: false, area: "", tab: "todas", saved: [], applied: [], companyJobs: [] };
   var draft = { avatar: "", color: "", skills: [] };
   var readyResolve;
   var readyPromise = new Promise(function (r) { readyResolve = r; });
@@ -119,7 +119,7 @@
 
   function validateForm(form) {
     var ok = true;
-    $$("input:not([data-skip]),select", form).forEach(function (f) {
+    $$("input:not([data-skip]),select,textarea", form).forEach(function (f) {
       var msg = fieldError(f);
       var out = f.closest(".f") && f.closest(".f").querySelector(".err");
       if (out) out.textContent = msg;
@@ -160,35 +160,51 @@
   function loadLists() { state.saved = readList("salvas"); state.applied = readList("candidaturas"); }
 
   /* ---------- Vagas ---------- */
-  function setupSearch() {
-    var cities = [];
-    JOBS.forEach(function (j) { if (j.m !== "Remoto" && cities.indexOf(j.l) < 0) cities.push(j.l); });
-    cities.sort().forEach(function (c) {
-      var o = document.createElement("option");
-      o.textContent = c;
-      $("cidade").appendChild(o);
+  function refreshSearchOptions() {
+    var citySelect = $("cidade"), selectedCity = citySelect.value, cities = [];
+    JOBS.forEach(function (job) {
+      if (job.m !== "Remoto" && cities.indexOf(job.l) < 0) cities.push(job.l);
     });
+    cities.sort();
+    while (citySelect.options.length > 1) citySelect.remove(1);
+    cities.forEach(function (city) {
+      var option = document.createElement("option");
+      option.value = city;
+      option.textContent = city;
+      citySelect.appendChild(option);
+    });
+    citySelect.value = cities.indexOf(selectedCity) > -1 ? selectedCity : "";
+
+    var areas = ["Todas"].concat(JOBS.map(function (job) { return job.a; }).filter(function (value, index, all) {
+      return all.indexOf(value) === index;
+    }));
+    if (state.area && areas.indexOf(state.area) < 0) state.area = "";
+    $("chips").innerHTML = "";
+    areas.forEach(function (area, index) {
+      var button = document.createElement("button");
+      button.className = "chip";
+      button.type = "button";
+      button.textContent = area;
+      button.setAttribute("aria-pressed", (index ? area === state.area : !state.area) ? "true" : "false");
+      button.addEventListener("click", function () {
+        state.area = index ? area : "";
+        $$(".chip", $("chips")).forEach(function (chip) {
+          chip.setAttribute("aria-pressed", chip === button ? "true" : "false");
+        });
+        renderJobs();
+      });
+      $("chips").appendChild(button);
+    });
+
     var companies = {};
-    JOBS.forEach(function (j) { companies[j.c] = 1; });
+    JOBS.forEach(function (job) { companies[job.c] = true; });
     $("s-vagas").textContent = JOBS.length;
     $("s-empresas").textContent = Object.keys(companies).length;
     $("s-cidades").textContent = cities.length;
+  }
 
-    var areas = ["Todas"].concat(JOBS.map(function (j) { return j.a; }).filter(function (v, i, a) { return a.indexOf(v) === i; }));
-    areas.forEach(function (a, i) {
-      var b = document.createElement("button");
-      b.className = "chip";
-      b.type = "button";
-      b.textContent = a;
-      b.setAttribute("aria-pressed", i === 0 ? "true" : "false");
-      b.addEventListener("click", function () {
-        state.area = i ? a : "";
-        $$(".chip", $("chips")).forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
-        renderJobs();
-      });
-      $("chips").appendChild(b);
-    });
-
+  function setupSearch() {
+    refreshSearchOptions();
     $("buscar").addEventListener("click", renderJobs);
     $("q").addEventListener("input", renderJobs);
     $("cidade").addEventListener("change", renderJobs);
@@ -199,6 +215,35 @@
         $$("[data-tab]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
         renderJobs();
       });
+    });
+  }
+
+  function normalizePublishedJob(job) {
+    return {
+      id: job.id, companyId: job.companyId || "", t: job.title || "", c: job.companyName || "",
+      cor: validColor(job.color) || defaultColor(job.companyName), a: job.area || "Outros",
+      l: job.city || "Remoto", m: job.mode || "Presencial", tipo: job.employmentType || "CLT",
+      s: job.salary || "A combinar", d: job.description || ""
+    };
+  }
+
+  function loadPublishedJobs() {
+    return provider.listJobs().then(function (jobs) {
+      var known = {};
+      JOBS.forEach(function (job) { known[job.id] = true; });
+      jobs.forEach(function (job) {
+        var listing = normalizePublishedJob(job);
+        if (listing.id && !known[listing.id]) {
+          known[listing.id] = true;
+          JOBS.push(listing);
+        }
+      });
+      state.companyJobs = jobs;
+      refreshSearchOptions();
+      renderJobs();
+      renderCompanyJobs();
+    }).catch(function (err) {
+      if (Auth.mode === "firebase") toast(Auth.explain(err), "error");
     });
   }
 
@@ -682,6 +727,64 @@
     renderSwatches();
     renderSkills();
     updatePreview();
+    $("pf-title").textContent = company ? "Perfil da empresa" : "Meu perfil";
+    $("company-jobs").hidden = !company;
+    if (company) renderCompanyJobs();
+  }
+
+  function renderCompanyJobs() {
+    if (!state.profile || state.profile.role !== "company") return;
+    var ownJobs = state.companyJobs.filter(function (job) { return job.companyId === state.user.uid; });
+    $("company-jobs-count").textContent = ownJobs.length + (ownJobs.length === 1 ? " vaga publicada" : " vagas publicadas");
+    $("company-mode-note").textContent = Auth.mode === "local"
+      ? "Modo demonstração: suas vagas ficam salvas neste navegador e não aparecem para outros visitantes."
+      : "As vagas publicadas ficam disponíveis na lista pública do site.";
+    if (!ownJobs.length) {
+      $("company-jobs-list").innerHTML = '<p class="empty-note">Você ainda não publicou vagas.</p>';
+      return;
+    }
+    $("company-jobs-list").innerHTML = ownJobs.map(function (job) {
+      return '<article class="company-listing"><div><h3>' + esc(job.title) + '</h3><p>' + esc(job.city) + " · " + esc(job.mode) + " · " + esc(job.employmentType) + '</p></div>' +
+        '<button class="btn ghost sm" type="button" data-delete-job="' + esc(job.id) + '">Remover</button></article>';
+    }).join("");
+  }
+
+  function publishJob(e) {
+    e.preventDefault();
+    if (!state.user || !state.profile || state.profile.role !== "company") return;
+    var form = $("job-form");
+    if (!validateForm(form)) return;
+    var job = {
+      companyName: state.profile.nome,
+      title: $("job-title").value.trim(), area: $("job-area").value,
+      city: $("job-city").value.trim(), mode: $("job-mode").value,
+      employmentType: $("job-type").value, salary: $("job-salary").value.trim() || "A combinar",
+      description: $("job-description").value.trim(),
+      color: validColor(state.profile.color) || defaultColor(state.profile.nome)
+    };
+    setBusy(form, true, "Publicando...");
+    provider.createJob(state.user.uid, job).then(function (saved) {
+      state.companyJobs.unshift(saved);
+      JOBS.unshift(normalizePublishedJob(saved));
+      refreshSearchOptions();
+      renderJobs();
+      renderCompanyJobs();
+      form.reset();
+      toast("Vaga publicada.");
+    }).catch(function (err) {
+      toast(Auth.explain(err), "error");
+    }).then(function () { setBusy(form, false); });
+  }
+
+  function deleteCompanyJob(id) {
+    provider.deleteJob(state.user.uid, id).then(function () {
+      state.companyJobs = state.companyJobs.filter(function (job) { return job.id !== id; });
+      JOBS = JOBS.filter(function (job) { return job.id !== id; });
+      refreshSearchOptions();
+      renderJobs();
+      renderCompanyJobs();
+      toast("Vaga removida.");
+    }).catch(function (err) { toast(Auth.explain(err), "error"); });
   }
 
   function formValue(name) { var el = pf(name); return el ? el.value.trim() : ""; }
@@ -798,6 +901,11 @@
   function setupProfile() {
     var form = $("profile-form");
     form.addEventListener("submit", saveProfile);
+    $("job-form").addEventListener("submit", publishJob);
+    $("company-jobs-list").addEventListener("click", function (e) {
+      var button = e.target.closest("[data-delete-job]");
+      if (button) deleteCompanyJob(button.dataset.deleteJob);
+    });
     form.addEventListener("input", function (e) {
       if (e.target.dataset && e.target.dataset.mask) {
         e.target.value = e.target.dataset.mask === "tel" ? maskTel(e.target.value) : maskCnpj(e.target.value);
@@ -851,6 +959,7 @@
   setupAuthDialog();
   setupMenu();
   setupProfile();
+  loadPublishedJobs();
   refreshThemeButton();
   renderJobs();
   window.addEventListener("hashchange", route);

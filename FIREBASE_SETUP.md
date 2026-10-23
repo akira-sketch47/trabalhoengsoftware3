@@ -18,7 +18,7 @@ Dá para abrir o `index.html` direto no navegador ou publicar no GitHub Pages.
 2. Copie a configuração do app Web para `firebase-config.js`, substituindo os valores `YOUR_...`.
 3. Em **Authentication → Sign-in method**, ative **E-mail/senha**.
 4. Crie o banco **Cloud Firestore**.
-5. Em **Firestore Database → Rules**, cole o conteúdo de `firestore.rules` e publique. **Publique de novo se já tinha uma versão antiga**: as regras agora aceitam os campos do perfil personalizável (`headline`, `skills`, `link`, `avatar`, `color`).
+5. Em **Firestore Database → Rules**, cole o conteúdo de `firestore.rules` e publique. **Publique de novo se já tinha uma versão antiga**: as regras aceitam os campos do perfil personalizável e a coleção `jobs` para publicação de vagas por empresas.
 6. Em **Authentication → Settings → Authorized domains**, confirme que o domínio do GitHub Pages está autorizado.
 7. Publique o site por HTTPS. O SDK do Firebase não carrega ao abrir o HTML via `file://`.
 
@@ -30,4 +30,4 @@ Quando a configuração está preenchida, o site passa a usar o Firebase automat
 - Se o perfil não puder ser salvo durante o cadastro, a conta recém-criada é removida para você tentar de novo sem ficar com uma conta sem perfil.
 - O link "Esqueci minha senha" só aparece no modo Firebase.
 - A configuração do app Web contém identificadores públicos. Nunca coloque senhas, chaves de conta de serviço ou outras credenciais privadas no repositório.
-- As regras permitem que cada usuário leia e altere apenas o próprio documento `profiles/{uid}`.
+- As regras permitem que cada usuário leia e altere apenas o próprio documento `profiles/{uid}`. Vagas em `jobs/{jobId}` podem ser lidas publicamente, mas só empresas autenticadas podem publicar ou remover as próprias vagas.

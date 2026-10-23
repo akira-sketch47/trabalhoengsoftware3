@@ -48,5 +48,42 @@ service cloud.firestore {
         && request.resource.data.role == resource.data.role;
       allow delete: if ownsProfile();
     }
+
+    match /jobs/{jobId} {
+      function isCompany(uid) {
+        return request.auth != null
+          && request.auth.uid == uid
+          && exists(/databases/$(database)/documents/profiles/$(uid))
+          && get(/databases/$(database)/documents/profiles/$(uid)).data.role == 'company';
+      }
+
+      function validJob(data) {
+        return data.keys().hasAll([
+          'companyId', 'companyName', 'title', 'area', 'city', 'mode',
+          'employmentType', 'salary', 'description', 'color', 'createdAt'
+        ]) && data.keys().hasOnly([
+          'companyId', 'companyName', 'title', 'area', 'city', 'mode',
+          'employmentType', 'salary', 'description', 'color', 'createdAt'
+        ])
+          && data.companyId == request.auth.uid
+          && data.companyName is string && data.companyName.size() <= 120
+          && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+          && data.area is string && data.area.size() <= 60
+          && data.city is string && data.city.size() > 0 && data.city.size() <= 100
+          && data.mode in ['Presencial', 'Híbrido', 'Remoto']
+          && data.employmentType in ['CLT', 'PJ', 'Estágio', 'Temporário']
+          && data.salary is string && data.salary.size() <= 80
+          && data.description is string && data.description.size() > 0 && data.description.size() <= 2000
+          && data.color is string && data.color.size() <= 9
+          && data.createdAt is timestamp;
+      }
+
+      allow read: if true;
+      allow create: if request.auth != null
+        && isCompany(request.auth.uid)
+        && validJob(request.resource.data);
+      allow delete: if isCompany(resource.data.companyId)
+        && resource.data.companyId == request.auth.uid;
+    }
   }
 }

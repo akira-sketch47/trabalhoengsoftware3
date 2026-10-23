@@ -43,6 +43,7 @@
   /* ---------- Provedor local (demonstração) ---------- */
   var USERS_KEY = "pontec-users";
   var SESSION_KEY = "pontec-session";
+  var JOBS_KEY = "pontec-jobs";
   var localListeners = [];
 
   function readUsers() {
@@ -155,6 +156,39 @@
       try { writeUsers(hit.users); } catch (e) { return Promise.reject(e); }
       return Promise.resolve(merged);
     },
+    listJobs: function () {
+      try {
+        var jobs = JSON.parse(localStorage.getItem(JOBS_KEY) || "[]");
+        return Promise.resolve(Array.isArray(jobs) ? jobs : []);
+      } catch (e) { return Promise.resolve([]); }
+    },
+    createJob: function (uid, job) {
+      var hit = findByUid(uid);
+      if (readSession() !== uid || !hit || hit.rec.profile.role !== "company") {
+        return Promise.reject(authError("permission-denied"));
+      }
+      return local.listJobs().then(function (jobs) {
+        var record = Object.assign({}, job, {
+          id: "job_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+          companyId: uid, createdAt: new Date().toISOString()
+        });
+        jobs.unshift(record);
+        try { localStorage.setItem(JOBS_KEY, JSON.stringify(jobs)); }
+        catch (e) { throw authError("storage/unavailable"); }
+        return record;
+      });
+    },
+    deleteJob: function (uid, id) {
+      var hit = findByUid(uid);
+      if (readSession() !== uid || !hit || hit.rec.profile.role !== "company") {
+        return Promise.reject(authError("permission-denied"));
+      }
+      return local.listJobs().then(function (jobs) {
+        var next = jobs.filter(function (job) { return job.id !== id || job.companyId !== uid; });
+        try { localStorage.setItem(JOBS_KEY, JSON.stringify(next)); }
+        catch (e) { throw authError("storage/unavailable"); }
+      });
+    },
     resetPassword: function () { return Promise.reject(authError("auth/unsupported")); }
   };
 
@@ -248,6 +282,31 @@
           return fb.A.updateProfile(fb.auth.currentUser, { displayName: changes.nome });
         }
       }).then(function () { return firebase.getProfile(uid); });
+    },
+    listJobs: function () {
+      return loadFirebase().then(function () {
+        return fb.F.getDocs(fb.F.collection(fb.db, "jobs"));
+      }).then(function (snapshot) {
+        return snapshot.docs.map(function (item) {
+          return Object.assign({ id: item.id }, item.data());
+        });
+      });
+    },
+    createJob: function (uid, job) {
+      return loadFirebase().then(function () {
+        if (!fb.auth.currentUser || fb.auth.currentUser.uid !== uid) throw authError("permission-denied");
+        return fb.F.addDoc(fb.F.collection(fb.db, "jobs"), Object.assign({}, job, {
+          companyId: uid, createdAt: fb.F.serverTimestamp()
+        }));
+      }).then(function (ref) {
+        return Object.assign({}, job, { id: ref.id, companyId: uid, createdAt: new Date().toISOString() });
+      });
+    },
+    deleteJob: function (uid, id) {
+      return loadFirebase().then(function () {
+        if (!fb.auth.currentUser || fb.auth.currentUser.uid !== uid) throw authError("permission-denied");
+        return fb.F.deleteDoc(fb.F.doc(fb.db, "jobs", id));
+      });
     },
     resetPassword: function (email) {
       return loadFirebase().then(function () { return fb.A.sendPasswordResetEmail(fb.auth, email); });

@@ -184,6 +184,28 @@ try{var t=localStorage.getItem("pontec-tema");if(t==="dark"||t==="light")documen
     </div>
    </aside>
   </div>
+    <section class="company-board card" id="company-jobs" hidden aria-labelledby="company-jobs-title">
+     <div class="company-board-head">
+        <div><h2 id="company-jobs-title">Área da empresa</h2><p class="muted">Publique oportunidades e acompanhe suas vagas.</p></div>
+        <span class="tag" id="company-jobs-count">0 vagas publicadas</span>
+     </div>
+     <p class="hint" id="company-mode-note"></p>
+     <form class="job-publish-form" id="job-form" novalidate>
+        <div class="f"><label for="job-title">Cargo</label><input id="job-title" name="title" required maxlength="120" placeholder="Ex.: Analista de dados"><span class="err"></span></div>
+        <div class="grid2">
+         <div class="f"><label for="job-area">Área</label><select id="job-area" name="area" required><option value="">Selecione</option><option>Tecnologia</option><option>Dados</option><option>Design</option><option>Marketing</option><option>Finanças</option><option>Vendas</option><option>Outros</option></select><span class="err"></span></div>
+         <div class="f"><label for="job-city">Cidade ou localidade</label><input id="job-city" name="city" required maxlength="100" placeholder="Ex.: São Paulo, SP ou Remoto"><span class="err"></span></div>
+        </div>
+        <div class="grid2">
+         <div class="f"><label for="job-mode">Modalidade</label><select id="job-mode" name="mode" required><option value="">Selecione</option><option>Presencial</option><option>Híbrido</option><option>Remoto</option></select><span class="err"></span></div>
+         <div class="f"><label for="job-type">Tipo de contratação</label><select id="job-type" name="type" required><option value="">Selecione</option><option>CLT</option><option>PJ</option><option>Estágio</option><option>Temporário</option></select><span class="err"></span></div>
+        </div>
+        <div class="f"><label for="job-salary">Faixa salarial</label><input id="job-salary" name="salary" maxlength="80" placeholder="Ex.: R$ 4.000 a R$ 6.000 ou A combinar"><span class="err"></span></div>
+        <div class="f"><label for="job-description">Descrição da vaga</label><textarea id="job-description" name="description" required maxlength="2000" rows="5" placeholder="Responsabilidades, requisitos e benefícios."></textarea><span class="err"></span></div>
+        <button class="btn" type="submit">Publicar vaga</button>
+     </form>
+     <div class="company-jobs-list" id="company-jobs-list" aria-live="polite"></div>
+    </section>
  </div>
 </main>
 
