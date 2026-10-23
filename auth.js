@@ -23,6 +23,8 @@
     "auth/too-many-requests": "Muitas tentativas. Aguarde um pouco e tente de novo.",
     "auth/operation-not-allowed": "Ative o método E-mail/senha no Firebase Authentication.",
     "email_not_confirmed": "Confirme o e-mail da conta ou desative “Confirm email” em Supabase > Authentication > Providers > Email.",
+    "over_email_send_rate_limit": "O Supabase limitou temporariamente o envio de e-mails deste projeto. Aguarde antes de tentar novamente. Se a conta já tiver sido criada, use a aba Entrar. Para evitar novos bloqueios, configure um SMTP próprio em Supabase > Project Settings > Authentication > SMTP Settings.",
+    "email_rate_limit_exceeded": "O Supabase limitou temporariamente o envio de e-mails deste projeto. Aguarde antes de tentar novamente. Se a conta já tiver sido criada, use a aba Entrar. Para evitar novos bloqueios, configure um SMTP próprio em Supabase > Project Settings > Authentication > SMTP Settings.",
     "auth/weak-password": "A senha precisa ter pelo menos 8 caracteres.",
     "auth/network-request-failed": "Falha de conexão. Verifique a internet e tente novamente.",
     "auth/unsupported": "Recurso disponível apenas com o Firebase configurado.",
@@ -41,6 +43,9 @@
 
   function explain(error) {
     if (error && MESSAGES[error.code]) return MESSAGES[error.code];
+    if (error && /email rate limit exceeded|over_email_send_rate_limit/i.test(error.message || "")) {
+      return MESSAGES.over_email_send_rate_limit;
+    }
     return "Não foi possível concluir a operação." + (error && error.message ? " (" + error.message + ")" : "");
   }
 
