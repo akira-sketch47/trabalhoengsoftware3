@@ -197,6 +197,25 @@ grant select, insert, delete on public.applications to authenticated;
 grant update (status, updated_at) on public.applications to authenticated;
 grant select, update (read_at) on public.notifications to authenticated;
 
+create or replace function public.is_current_profile(expected_role text, expected_name text default null)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.profiles as profile
+    where profile.id = (select auth.uid())
+      and profile.role = expected_role
+      and (expected_name is null or profile.nome = expected_name)
+  );
+$$;
+
+revoke all on function public.is_current_profile(text, text) from public;
+grant execute on function public.is_current_profile(text, text) to authenticated;
+
 drop policy if exists "Users can read their own profile" on public.profiles;
 create policy "Users can read their own profile"
   on public.profiles for select to authenticated
@@ -227,13 +246,7 @@ create policy "Companies can publish jobs"
   on public.jobs for insert to authenticated
   with check (
     company_id = (select auth.uid())
-    and company_name = (
-      select nome from public.profiles where id = (select auth.uid())
-    )
-    and exists (
-      select 1 from public.profiles
-      where id = (select auth.uid()) and role = 'company'
-    )
+    and public.is_current_profile('company', company_name)
   );
 
 drop policy if exists "Companies can update their jobs" on public.jobs;
@@ -241,20 +254,11 @@ create policy "Companies can update their jobs"
   on public.jobs for update to authenticated
   using (
     company_id = (select auth.uid())
-    and exists (
-      select 1 from public.profiles
-      where id = (select auth.uid()) and role = 'company'
-    )
+    and public.is_current_profile('company')
   )
   with check (
     company_id = (select auth.uid())
-    and company_name = (
-      select nome from public.profiles where id = (select auth.uid())
-    )
-    and exists (
-      select 1 from public.profiles
-      where id = (select auth.uid()) and role = 'company'
-    )
+    and public.is_current_profile('company', company_name)
   );
 
 drop policy if exists "Companies can delete their jobs" on public.jobs;
@@ -262,10 +266,7 @@ create policy "Companies can delete their jobs"
   on public.jobs for delete to authenticated
   using (
     company_id = (select auth.uid())
-    and exists (
-      select 1 from public.profiles
-      where id = (select auth.uid()) and role = 'company'
-    )
+    and public.is_current_profile('company')
   );
 
 drop policy if exists "Users can read their saved jobs" on public.saved_jobs;
@@ -303,14 +304,8 @@ create policy "Candidates can apply to open jobs"
   on public.applications for insert to authenticated
   with check (
     candidate_id = (select auth.uid())
-    and candidate_name = (
-      select nome from public.profiles where id = (select auth.uid())
-    )
+    and public.is_current_profile('candidate', candidate_name)
     and candidate_email = (select auth.jwt() ->> 'email')
-    and exists (
-      select 1 from public.profiles
-      where id = (select auth.uid()) and role = 'candidate'
-    )
     and exists (
       select 1 from public.jobs
       where jobs.id = job_id and jobs.status = 'open'

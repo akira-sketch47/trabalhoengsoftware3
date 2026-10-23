@@ -5,7 +5,7 @@ O portal usa o Supabase para autenticacao, perfis, vagas, favoritos e candidatur
 ## Preparar o projeto
 
 1. Crie um projeto em [supabase.com](https://supabase.com/).
-2. No painel **SQL Editor**, execute todo o arquivo `supabase-schema.sql`. Ele cria as tabelas, o perfil automatico no cadastro e as politicas de seguranca (RLS). Se executou uma versao anterior deste arquivo, execute a versao atualizada novamente para adicionar os campos do perfil e habilitar a edicao segura do perfil; os comandos podem ser executados novamente sem apagar as vagas ou contas existentes.
+2. No painel **SQL Editor**, execute todo o arquivo `supabase-schema.sql`. Ele cria as tabelas, o perfil automatico no cadastro e as politicas de seguranca (RLS). Se executou uma versao anterior, execute novamente a versao atualizada para corrigir a recursao nas politicas que impedia publicar vagas e candidaturas. Os comandos podem ser executados novamente sem apagar as vagas ou contas existentes.
 3. Em **Authentication > Providers > Email**, habilite o provedor e desative **Confirm email** para que a conta seja criada e autenticada sem clicar em um link de confirmação. Se essa opção permanecer ligada, o Supabase não libera a sessão até o e-mail ser confirmado.
 4. Em **Project Settings > API**, copie a **Project URL** e a chave publica **anon** (tambem chamada publishable key) para `supabase-config.js`.
 5. Em **Authentication > URL Configuration**, configure a URL do site e inclua o dominio publicado (e `localhost`, se usar) na lista de redirecionamentos permitidos.
@@ -30,6 +30,6 @@ Use somente a chave publica `anon`/publishable no navegador. Nunca coloque uma c
 - `applications`: candidatura e dados de contato do candidato, visiveis somente ao proprio candidato e a empresa dona da vaga.
 - `notifications`: avisos dentro do portal para novas candidaturas e decisões da empresa. A empresa pode ver o perfil do candidato depois que ele se candidata; a decisão de aceitar ou recusar é enviada como notificação.
 
-As politicas RLS permitem leitura publica apenas de vagas abertas. Empresas autenticadas podem publicar e remover suas proprias vagas, consultar os perfis dos candidatos às próprias vagas e aceitar ou recusar cada candidatura uma vez; candidatos podem se candidatar e consultar o próprio histórico. Notificações são exibidas dentro do portal em tempo real (com o site aberto) e continuam disponíveis ao voltar. O sistema não envia e-mails nem notificações push. A chave pública não substitui essas políticas.
+As politicas RLS permitem leitura publica apenas de vagas abertas. Uma funcao restrita verifica o papel e o nome do perfil autenticado sem criar recursao entre as politicas. Empresas autenticadas podem publicar e remover suas proprias vagas, consultar os perfis dos candidatos às próprias vagas e aceitar ou recusar cada candidatura uma vez; candidatos podem se candidatar e consultar o próprio histórico. Notificações são exibidas dentro do portal em tempo real (com o site aberto) e continuam disponíveis ao voltar. O sistema não envia e-mails nem notificações push. A chave pública não substitui essas políticas.
 
 Sem credenciais preenchidas, a pagina mantem as vagas de exemplo e grava favoritos/candidaturas de demonstracao apenas no navegador. Cadastro, login e publicacao reais so funcionam depois de configurar o Supabase e executar o SQL.
