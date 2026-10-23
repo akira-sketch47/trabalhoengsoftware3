@@ -22,6 +22,7 @@
     "auth/wrong-password": "E-mail ou senha incorretos.",
     "auth/too-many-requests": "Muitas tentativas. Aguarde um pouco e tente de novo.",
     "auth/operation-not-allowed": "Ative o método E-mail/senha no Firebase Authentication.",
+    "signup_disabled": "O Supabase está bloqueando novos cadastros. No painel, abra Authentication > Settings > User Signups e habilite “Allow new users to sign up”. Para não enviar confirmação por e-mail, mantenha “Confirm email” desativado nas configurações do provedor Email.",
     "email_not_confirmed": "Confirme o e-mail da conta ou desative “Confirm email” em Supabase > Authentication > Providers > Email.",
     "over_email_send_rate_limit": "O Supabase ainda está tentando enviar e-mails. Desative “Confirm email” em Supabase > Authentication > Providers > Email para o cadastro não exigir confirmação. Se já desativou, aguarde o limite temporário liberar e tente novamente. Se a conta já foi criada, use a aba Entrar.",
     "email_rate_limit_exceeded": "O Supabase ainda está tentando enviar e-mails. Desative “Confirm email” em Supabase > Authentication > Providers > Email para o cadastro não exigir confirmação. Se já desativou, aguarde o limite temporário liberar e tente novamente. Se a conta já foi criada, use a aba Entrar.",
@@ -43,6 +44,9 @@
 
   function explain(error) {
     if (error && MESSAGES[error.code]) return MESSAGES[error.code];
+    if (error && /email signups are disabled/i.test(error.message || "")) {
+      return MESSAGES.signup_disabled;
+    }
     if (error && /email rate limit exceeded|over_email_send_rate_limit/i.test(error.message || "")) {
       return MESSAGES.over_email_send_rate_limit;
     }
