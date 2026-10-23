@@ -14,7 +14,7 @@
     });
   }
 
-  var state = { user: null, profile: null, ready: false, area: "", tab: "todas", saved: [], applied: [], companyJobs: [] };
+  var state = { user: null, profile: null, ready: false, area: "", tab: "todas", saved: [], applied: [], companyJobs: [], companyIntent: false };
   var draft = { avatar: "", color: "", skills: [] };
   var readyResolve;
   var readyPromise = new Promise(function (r) { readyResolve = r; });
@@ -430,8 +430,17 @@
     provider.signIn($("l-email").value.trim(), $("l-senha").value)
       .then(function (user) {
         var onProfile = location.hash === "#perfil";
+          var fromCompany = state.companyIntent || location.hash === "#empresa";
         return afterSession(user, false, null).then(function () {
           if (onProfile) route();
+            else if (fromCompany) {
+              state.companyIntent = false;
+              if (state.profile && state.profile.role === "company") {
+                if (location.hash === "#empresa") route(); else location.hash = "#empresa";
+              } else {
+                toast("Entre com uma conta de empresa para acessar este painel.", "error");
+              }
+            }
         });
       })
       .catch(function (err) { showAuthError(Auth.explain(err)); })
@@ -454,7 +463,13 @@
       setBusy(form, true, "Criando conta…");
       provider.signUp(v.email, v.senha, profile)
         .then(function (user) {
-          return afterSession(user, true, "Conta criada! Aproveite para personalizar seu perfil.");
+          return afterSession(user, role !== "company", "Conta criada! Aproveite para personalizar seu perfil.")
+            .then(function () {
+              if (role === "company") {
+                state.companyIntent = false;
+                location.hash = "#empresa";
+              }
+            });
         })
         .catch(function (err) { showAuthError(Auth.explain(err)); })
         .then(function () { setBusy(form, false); });
@@ -465,6 +480,17 @@
     $$("[data-open-auth]").forEach(function (b) {
       b.addEventListener("click", function () { openAuth(b.dataset.openAuth); });
     });
+      $("nav-company").addEventListener("click", function () {
+        if (state.profile && state.profile.role === "company") {
+          state.companyIntent = false;
+          if (location.hash === "#empresa") route(); else location.hash = "#empresa";
+        } else if (state.user) {
+          toast("Esta área é exclusiva para contas de empresa.", "error");
+        } else {
+          state.companyIntent = true;
+          openAuth("company", "Crie uma conta de empresa ou entre para publicar vagas.");
+        }
+      });
     $$("[data-auth-tab]").forEach(function (b) {
       b.addEventListener("click", function () { setAuthTab(b.dataset.authTab); });
     });
@@ -602,6 +628,24 @@
   /* ---------- Rotas (início / perfil) ---------- */
   function route() {
     var hash = location.hash;
+    if (hash === "#empresa") {
+      return readyPromise.then(function () {
+        if (!state.user || !state.profile) {
+          history.replaceState(null, "", location.pathname + location.search);
+          showView("home");
+          state.companyIntent = true;
+          openAuth("company", "Entre ou crie uma conta para publicar vagas pela sua empresa.");
+          return;
+        }
+        if (state.profile.role !== "company") {
+          history.replaceState(null, "", location.pathname + location.search);
+          showView("home");
+          toast("Esta área é exclusiva para contas de empresa.", "error");
+          return;
+        }
+        showView("company");
+      });
+    }
     if (hash === "#perfil") {
       return readyPromise.then(function () {
         if (!state.user || !state.profile) {
@@ -621,14 +665,22 @@
 
   function showView(name) {
     var profile = name === "profile";
-    var wasProfile = !$("view-profile").hidden;
-    $("view-home").hidden = profile;
+    var company = name === "company";
+    var wasSubpage = !$ ("view-profile").hidden || !$ ("view-company").hidden;
+    $("view-home").hidden = profile || company;
     $("view-profile").hidden = !profile;
+    $("view-company").hidden = !company;
     if (profile) {
       renderProfile();
       window.scrollTo(0, 0);
       $("pf-title").focus({ preventScroll: true });
-    } else if (wasProfile) {
+    } else if (company) {
+      $("company-page-title").textContent = state.profile.nome;
+      $("company-page-subtitle").textContent = state.profile.headline || "Gerencie as oportunidades da sua empresa.";
+      renderCompanyJobs();
+      window.scrollTo(0, 0);
+      $("company-page-title").focus({ preventScroll: true });
+    } else if (wasSubpage) {
       window.scrollTo(0, 0);
     }
   }
@@ -728,8 +780,6 @@
     renderSkills();
     updatePreview();
     $("pf-title").textContent = company ? "Perfil da empresa" : "Meu perfil";
-    $("company-jobs").hidden = !company;
-    if (company) renderCompanyJobs();
   }
 
   function renderCompanyJobs() {

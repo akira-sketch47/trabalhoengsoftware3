@@ -213,7 +213,12 @@ dialog[open]{animation:pop .18s ease-out}
 .meter-top{display:flex;justify-content:space-between;font-size:.9rem;font-weight:600}
 .meter-bar{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
 .meter-bar span{display:block;height:100%;width:0;background:var(--brand);border-radius:99px;transition:width .3s}
-.company-board{margin-top:24px}
+.company-wrap{padding-top:32px;padding-bottom:64px}
+.company-page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.company-page-head h1{font-size:2rem}
+.company-page-head h1:focus{outline:none}
+.company-page-head .eyebrow{font-size:.75rem;font-weight:700;color:var(--brand);margin-bottom:4px}
+.company-board{margin-top:0}
 .company-board-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .company-board-head h2{font-size:1.35rem}
 .company-board-head p{margin-top:4px}
