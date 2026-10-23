@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /profiles/{userId} {
+      function ownsProfile() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function optString(data, key, max) {
+        return !(key in data) || (data[key] is string && data[key].size() <= max);
+      }
+
+      function validProfile(data) {
+        return data.keys().hasOnly([
+          'uid', 'role', 'nome', 'email', 'tel', 'cidade', 'area', 'esc',
+          'sobre', 'cnpj', 'setor', 'resp', 'desc',
+          'headline', 'skills', 'link', 'avatar', 'color',
+          'createdAt', 'updatedAt'
+        ]) && data.uid == userId
+          && data.role in ['candidate', 'company']
+          && data.nome is string && data.nome.size() > 0 && data.nome.size() <= 120
+          && data.email is string
+          && data.updatedAt is timestamp
+          && optString(data, 'tel', 30)
+          && optString(data, 'cidade', 100)
+          && optString(data, 'area', 60)
+          && optString(data, 'esc', 60)
+          && optString(data, 'sobre', 2000)
+          && optString(data, 'cnpj', 18)
+          && optString(data, 'setor', 60)
+          && optString(data, 'resp', 120)
+          && optString(data, 'desc', 2000)
+          && optString(data, 'headline', 120)
+          && optString(data, 'link', 300)
+          && optString(data, 'color', 9)
+          && optString(data, 'avatar', 150000)
+          && (!('skills' in data) || (data.skills is list && data.skills.size() <= 12));
+      }
+
+      allow create: if ownsProfile()
+        && validProfile(request.resource.data)
+        && request.resource.data.createdAt is timestamp;
+      allow read: if ownsProfile();
+      allow update: if ownsProfile()
+        && validProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.role == resource.data.role;
+      allow delete: if ownsProfile();
+    }
+  }
+}
