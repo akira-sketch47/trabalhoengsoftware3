@@ -178,7 +178,11 @@
       ? provider.listApplications(state.user.uid) : Promise.resolve([]);
     return Promise.all([savedRequest, appliedRequest]).then(function (lists) {
       state.saved = lists[0];
-      state.applied = lists[1].map(function (application) { return application.job_id; });
+      var demoApplications = readList("candidaturas").filter(function (id) {
+        return JOBS.some(function (job) { return job.id === id; }) &&
+          !state.companyJobs.some(function (job) { return job.id === id; });
+      });
+      state.applied = lists[1].map(function (application) { return application.job_id; }).concat(demoApplications);
       state.applicationStatuses = {};
       lists[1].forEach(function (application) { state.applicationStatuses[application.job_id] = application.status; });
     }).catch(function (err) {
@@ -307,11 +311,12 @@
       var saved = state.saved.indexOf(j.id) > -1, applied = state.applied.indexOf(j.id) > -1;
       var applicationStatus = state.applicationStatuses[j.id];
       var canPersist = Auth.mode !== "supabase" || state.companyJobs.some(function (job) { return job.id === j.id; });
+      var demoApplication = applied && Auth.mode === "supabase" && !state.companyJobs.some(function (job) { return job.id === j.id; });
       return '<article class="job"><div class="co-logo" style="background:' + esc(j.cor) + '" aria-hidden="true">' + esc(j.c[0]) + "</div>" +
         '<div><h3>' + esc(j.t) + '</h3><p class="job-co">' + esc(j.c) + " – " + esc(j.l) + '</p><div class="tags"><span class="tag">' +
         esc(j.m) + '</span><span class="tag">' + esc(j.tipo) + '</span><span class="tag">' + esc(j.a) + "</span>" +
         (applicationStatus ? '<span class="tag">' + esc(applicationStatus === "accepted" ? "Candidatura aceita" : applicationStatus === "rejected" ? "Não selecionada" : "Em análise") + "</span>" : "") +
-        (applied ? '<span class="tag ok">Candidatura enviada</span>' : "") + "</div></div>" +
+        (applied ? '<span class="tag ok">' + (demoApplication ? "Salva neste navegador" : "Candidatura enviada") + "</span>" : "") + "</div></div>" +
         '<div class="job-side"><span class="sal">' + esc(j.s) + '</span><div class="job-actions">' +
         '<button class="icon-btn fav" type="button" data-fav="' + j.id + '" aria-pressed="' + saved + '" aria-label="' + (saved ? "Remover " : "Salvar ") + esc(j.t) + (saved ? " das vagas salvas" : " nas vagas salvas") + '"' + (canPersist ? "" : ' disabled title="Vaga de exemplo; interações reais estão disponíveis para vagas publicadas"') + '>' +
         '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.2-9.2C1.6 8 3.7 5 6.9 5c1.9 0 3.5 1 5.1 3 1.6-2 3.2-3 5.1-3 3.2 0 5.3 3 4.1 6.3-1.7 4.6-9.2 9.2-9.2 9.2z"/></svg></button>' +
@@ -343,20 +348,20 @@
     btn.disabled = false;
     btn.textContent = "Candidatar-se";
     if (applied) {
-      btn.textContent = "Candidatura enviada";
+      var demoApplication = Auth.mode === "supabase" && !state.companyJobs.some(function (job) { return job.id === openJob.id; });
+      btn.textContent = demoApplication ? "Candidatura salva" : "Candidatura enviada";
       btn.disabled = true;
-    } else if (Auth.mode === "supabase" && !state.companyJobs.some(function (job) { return job.id === openJob.id; })) {
-      btn.disabled = true;
-      note.textContent = "Vaga de exemplo. Para se candidatar, escolha uma vaga publicada por uma empresa.";
+      if (demoApplication) note.textContent = "Este registro fica neste navegador e não foi enviado à empresa fictícia.";
     } else if (!state.user) {
       btn.textContent = "Entrar para se candidatar";
     } else if (state.profile && state.profile.role === "company") {
       btn.disabled = true;
       note.textContent = "Contas de empresa não podem se candidatar a vagas.";
     } else {
-      note.textContent = Auth.mode === "supabase"
+      var isPublished = Auth.mode === "supabase" && state.companyJobs.some(function (job) { return job.id === openJob.id; });
+      note.textContent = isPublished
         ? "Sua candidatura será compartilhada com a empresa responsável pela vaga."
-        : "Projeto acadêmico: a candidatura é registrada neste navegador e nenhum dado é enviado a empresas.";
+        : "Vaga de exemplo: a candidatura fica salva neste navegador e não é enviada à empresa fictícia.";
     }
   }
 
@@ -370,6 +375,17 @@
     if (state.profile && state.profile.role === "company") return;
     if (state.applied.indexOf(openJob.id) > -1) return;
     if (Auth.mode === "supabase") {
+      if (!state.companyJobs.some(function (job) { return job.id === openJob.id; })) {
+        var demoApplications = readList("candidaturas");
+        if (demoApplications.indexOf(openJob.id) < 0) demoApplications.push(openJob.id);
+        if (writeList("candidaturas", demoApplications)) {
+          state.applied = state.applied.concat([openJob.id]);
+          refreshApplyButton();
+          renderJobs();
+          toast("Candidatura demonstrativa salva neste navegador; não foi enviada a uma empresa.");
+        }
+        return;
+      }
       provider.applyToJob(state.user.uid, openJob.id, state.profile, state.user.email)
         .then(function () {
           state.applied = state.applied.concat([openJob.id]);
@@ -918,6 +934,7 @@
     };
     renderSwatches();
     renderSkills();
+    renderResume();
     updatePreview();
     $("pf-title").textContent = company ? "Perfil da empresa" : "Meu perfil";
   }
@@ -985,7 +1002,9 @@
     }
     var profile = application.profiles;
     var link = normalizeUrl(profile.link);
-    $("candidate-profile-content").innerHTML =
+    var content = $("candidate-profile-content");
+    content.dataset.applicationId = applicationId;
+    content.innerHTML =
       '<div class="candidate-profile"><h3>' + esc(profile.nome || application.candidate_name) + '</h3>' +
       (profile.headline ? '<p class="muted">' + esc(profile.headline) + '</p>' : "") +
       '<p><strong>E-mail:</strong> ' + esc(profile.email || application.candidate_email) + '</p>' +
@@ -996,8 +1015,19 @@
       (profile.sobre ? '<p><strong>Sobre:</strong> ' + esc(profile.sobre) + '</p>' : "") +
       (profile.skills && profile.skills.length ? '<p><strong>Habilidades:</strong> ' + esc(profile.skills.join(", ")) + '</p>' : "") +
       (link ? '<p><strong>Link:</strong> <a href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' + esc(link) + '</a></p>' : "") +
+      (profile.resume_path ? '<p id="candidate-resume"><strong>Currículo:</strong> gerando link seguro…</p>' : '<p><strong>Currículo:</strong> não anexado.</p>') +
       "</div>";
     $("candidate-profile-dlg").showModal();
+    if (profile.resume_path) {
+      provider.getResumeUrl(profile.resume_path).then(function (url) {
+        if (content.dataset.applicationId === applicationId) {
+          $("candidate-resume").innerHTML = '<strong>Currículo:</strong> <a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">Abrir PDF</a>';
+        }
+      }).catch(function (err) {
+        if (content.dataset.applicationId === applicationId) $("candidate-resume").textContent = "Não foi possível carregar o currículo.";
+        toast(Auth.explain(err), "error");
+      });
+    }
   }
 
   function reviewApplication(applicationId, status, button) {
@@ -1161,6 +1191,97 @@
       .then(function () { setBusy(form, false); });
   }
 
+  function renderResume() {
+    var upload = $("resume-upload"), remove = $("resume-remove"), link = $("pf-resume-link");
+    var status = $("resume-status"), path = state.profile && state.profile.resume_path;
+    var supported = Auth.mode === "supabase" && state.profile && state.profile.role === "candidate";
+    upload.disabled = !supported;
+    $("pf-resume").disabled = !supported;
+    remove.hidden = !path;
+    link.hidden = !path;
+    if (!supported) {
+      status.textContent = "Anexar currículo ao banco requer uma conta de candidato no Supabase.";
+      return;
+    }
+    if (!path) {
+      status.textContent = "Nenhum currículo anexado.";
+      return;
+    }
+    link.textContent = "Gerando link seguro…";
+    link.setAttribute("aria-disabled", "true");
+    link.setAttribute("tabindex", "-1");
+    link.removeAttribute("href");
+    provider.getResumeUrl(path).then(function (url) {
+      if (!state.profile || state.profile.resume_path !== path) return;
+      link.href = url;
+      link.textContent = "Abrir currículo";
+      link.removeAttribute("aria-disabled");
+      link.removeAttribute("tabindex");
+      status.textContent = "Currículo anexado.";
+    }).catch(function (err) {
+      if (state.profile && state.profile.resume_path === path) {
+        status.textContent = "Não foi possível carregar o currículo.";
+        toast(Auth.explain(err), "error");
+      }
+    });
+  }
+
+  function uploadResume() {
+    var file = $("pf-resume").files && $("pf-resume").files[0];
+    $("pf-resume").value = "";
+    if (!file) return;
+    if (file.type !== "application/pdf" || !/\.pdf$/i.test(file.name)) {
+      toast("O currículo precisa ser um arquivo PDF.", "error");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast("O currículo deve ter no máximo 5 MB.", "error");
+      return;
+    }
+    var button = $("resume-upload");
+    button.disabled = true;
+    $("resume-status").textContent = "Enviando currículo…";
+    var oldPath = state.profile.resume_path;
+    provider.uploadResume(state.user.uid, file).then(function (path) {
+      return provider.saveProfile(state.user.uid, { resume_path: path }).then(function (saved) {
+        state.profile = saved;
+        renderResume();
+        toast("Currículo anexado ao perfil.");
+        if (oldPath) {
+          provider.deleteResume(oldPath).catch(function (err) {
+            toast("O currículo foi atualizado, mas o arquivo anterior não pôde ser removido: " + Auth.explain(err), "error");
+          });
+        }
+      }).catch(function (err) {
+        return provider.deleteResume(path).catch(function (cleanupError) {
+          console.error("Não foi possível remover o currículo enviado após falha ao salvar o perfil.", cleanupError);
+        }).then(function () { throw err; });
+      });
+    }).catch(function (err) {
+      $("resume-status").textContent = "Não foi possível anexar o currículo.";
+      toast(Auth.explain(err), "error");
+    }).then(function () {
+      button.disabled = false;
+      $("pf-resume").value = "";
+    });
+  }
+
+  function removeResume() {
+    var path = state.profile && state.profile.resume_path;
+    if (!path) return;
+    $("resume-remove").disabled = true;
+    provider.saveProfile(state.user.uid, { resume_path: null }).then(function (saved) {
+      state.profile = saved;
+      renderResume();
+      toast("Currículo removido do perfil.");
+      return provider.deleteResume(path).catch(function (err) {
+        toast("O currículo saiu do perfil, mas o arquivo não pôde ser removido: " + Auth.explain(err), "error");
+      });
+    }).catch(function (err) {
+      toast(Auth.explain(err), "error");
+    }).then(function () { $("resume-remove").disabled = false; });
+  }
+
   function setupProfile() {
     var form = $("profile-form");
     form.addEventListener("submit", saveProfile);
@@ -1184,6 +1305,9 @@
     $("pf-reset").addEventListener("click", function () { renderProfile(); toast("Alterações descartadas."); });
     $("photo-pick").addEventListener("click", function () { $("pf-photo").click(); });
     $("photo-remove").addEventListener("click", function () { draft.avatar = ""; updatePreview(); });
+    $("resume-upload").addEventListener("click", function () { $("pf-resume").click(); });
+    $("pf-resume").addEventListener("change", uploadResume);
+    $("resume-remove").addEventListener("click", removeResume);
     $("pf-photo").addEventListener("change", function (e) {
       var file = e.target.files && e.target.files[0];
       e.target.value = "";

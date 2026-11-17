@@ -17,6 +17,7 @@ create table if not exists public.profiles (
   link text check (link is null or char_length(link) <= 300),
   avatar text check (avatar is null or char_length(avatar) <= 150000),
   color text check (color is null or char_length(color) <= 9),
+  resume_path text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -26,6 +27,7 @@ alter table public.profiles add column if not exists skills text[] not null defa
 alter table public.profiles add column if not exists link text check (link is null or char_length(link) <= 300);
 alter table public.profiles add column if not exists avatar text check (avatar is null or char_length(avatar) <= 150000);
 alter table public.profiles add column if not exists color text check (color is null or char_length(color) <= 9);
+alter table public.profiles add column if not exists resume_path text;
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
@@ -190,12 +192,20 @@ alter table public.notifications replica identity full;
 grant select on public.profiles to authenticated;
 grant update (nome, tel, cidade, area, esc, sobre, cnpj, setor, resp, "desc", headline, skills, link, avatar, color, updated_at)
   on public.profiles to authenticated;
+grant update (resume_path) on public.profiles to authenticated;
 grant select on public.jobs to anon, authenticated;
 grant insert, update, delete on public.jobs to authenticated;
 grant select, insert, delete on public.saved_jobs to authenticated;
 grant select, insert, delete on public.applications to authenticated;
 grant update (status, updated_at) on public.applications to authenticated;
 grant select, update (read_at) on public.notifications to authenticated;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('candidate-resumes', 'candidate-resumes', false, 5242880, array['application/pdf'])
+on conflict (id) do update
+  set public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 create or replace function public.is_current_profile(expected_role text, expected_name text default null)
 returns boolean
@@ -215,6 +225,49 @@ $$;
 
 revoke all on function public.is_current_profile(text, text) from public;
 grant execute on function public.is_current_profile(text, text) to authenticated;
+
+drop policy if exists "Candidates can upload their own resumes" on storage.objects;
+create policy "Candidates can upload their own resumes"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'candidate-resumes'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and public.is_current_profile('candidate')
+  );
+
+drop policy if exists "Candidates and applicant companies can read resumes" on storage.objects;
+create policy "Candidates and applicant companies can read resumes"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'candidate-resumes'
+    and (
+      (storage.foldername(name))[1] = (select auth.uid())::text
+      or (
+        exists (
+          select 1
+          from public.applications
+          join public.jobs on jobs.id = applications.job_id
+          where applications.candidate_id::text = (storage.foldername(storage.objects.name))[1]
+            and jobs.company_id = (select auth.uid())
+        )
+        and exists (
+          select 1
+          from public.profiles
+          where profiles.id::text = (storage.foldername(storage.objects.name))[1]
+            and profiles.resume_path = storage.objects.name
+        )
+      )
+    )
+  );
+
+drop policy if exists "Candidates can delete their own resumes" on storage.objects;
+create policy "Candidates can delete their own resumes"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'candidate-resumes'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and public.is_current_profile('candidate')
+  );
 
 drop policy if exists "Users can read their own profile" on public.profiles;
 create policy "Users can read their own profile"

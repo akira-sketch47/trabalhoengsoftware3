@@ -5,7 +5,7 @@ O portal usa o Supabase para autenticacao, perfis, vagas, favoritos e candidatur
 ## Preparar o projeto
 
 1. Crie um projeto em [supabase.com](https://supabase.com/).
-2. No painel **SQL Editor**, execute todo o arquivo `supabase-schema.sql`. Ele cria as tabelas, o perfil automatico no cadastro e as politicas de seguranca (RLS). Se executou uma versao anterior, execute novamente a versao atualizada para corrigir a recursao nas politicas que impedia publicar vagas e candidaturas. Os comandos podem ser executados novamente sem apagar as vagas ou contas existentes.
+2. No painel **SQL Editor**, execute todo o arquivo `supabase-schema.sql`. Ele cria as tabelas, o perfil automatico no cadastro, o bucket privado de curriculos e as politicas de seguranca (RLS). Se executou uma versao anterior, execute novamente a versao atualizada para aplicar essas alteracoes; os comandos podem ser executados novamente sem apagar as vagas ou contas existentes.
 3. Em **Authentication > Settings > User Signups**, habilite **Allow new users to sign up** para permitir novos cadastros.
 4. Em **Authentication > Providers > Email**, habilite o provedor Email e desative **Confirm email**. Assim a conta é criada e autenticada sem e-mail de confirmação. O portal não oferece envio de e-mail de recuperação de senha; se esquecer a senha, será necessário contatar o administrador do projeto.
    - Se aparecer **Email signups are disabled**, confira tanto **Allow new users to sign up** quanto se o provedor **Email** está habilitado. O erro pode ocorrer mesmo com os cadastros globais permitidos quando o provedor de e-mail está desligado.
@@ -31,8 +31,11 @@ Use somente a chave publica `anon`/publishable no navegador. Nunca coloque uma c
 - `jobs`: vagas publicadas por contas de empresa.
 - `saved_jobs`: favoritos por usuario.
 - `applications`: candidatura e dados de contato do candidato, visiveis somente ao proprio candidato e a empresa dona da vaga.
+- `candidate-resumes` (Storage): curriculos em PDF, com limite de 5 MB. O candidato pode gerenciar o proprio arquivo; a empresa só pode gerar um link temporário para o currículo atual após receber uma candidatura.
 - `notifications`: avisos dentro do portal para novas candidaturas e decisões da empresa. A empresa pode ver o perfil do candidato depois que ele se candidata; a decisão de aceitar ou recusar é enviada como notificação.
 
 As politicas RLS permitem leitura publica apenas de vagas abertas. Uma funcao restrita verifica o papel e o nome do perfil autenticado sem criar recursao entre as politicas. Empresas autenticadas podem publicar e remover suas proprias vagas, consultar os perfis dos candidatos às próprias vagas e aceitar ou recusar cada candidatura uma vez; candidatos podem se candidatar e consultar o próprio histórico. Notificações são exibidas dentro do portal em tempo real (com o site aberto) e continuam disponíveis ao voltar. O portal não envia e-mails nem notificações push; mantenha **Confirm email** desativado no Supabase para que o próprio Auth também não solicite e-mail no cadastro. A chave pública não substitui essas políticas.
 
-Sem credenciais preenchidas, a pagina mantem as vagas de exemplo e grava favoritos/candidaturas de demonstracao apenas no navegador. Cadastro, login e publicacao reais so funcionam depois de configurar o Supabase e executar o SQL.
+As vagas de exemplo sao ficticias: candidaturas a elas ficam apenas no navegador e nao sao enviadas às empresas mostradas. As vagas publicadas no Supabase aceitam candidaturas reais e compartilham o currículo atual do candidato com a empresa responsavel.
+
+Sem credenciais preenchidas, a pagina mantem as vagas de exemplo e grava favoritos/candidaturas de demonstracao apenas no navegador. Cadastro, login, curriculos e publicacao reais so funcionam depois de configurar o Supabase e executar o SQL.

@@ -156,6 +156,18 @@ try{var t=localStorage.getItem("pontec-tema");if(t==="dark"||t==="light")documen
      <div class="f"><label for="pf-link" id="l-link">LinkedIn ou site pessoal</label><input id="pf-link" name="link" type="text" inputmode="url" maxlength="300" data-v="url" placeholder="linkedin.com/in/seu-nome" autocomplete="url"><span class="err"></span></div>
     </fieldset>
 
+    <fieldset class="card" data-role="candidate">
+     <legend>Currículo</legend>
+     <p class="hint">Anexe um arquivo PDF de até 5 MB. O currículo fica privado e só pode ser acessado por empresas às quais você se candidatou.</p>
+     <input type="file" id="pf-resume" accept="application/pdf,.pdf" hidden data-skip>
+     <div class="btn-row">
+      <button class="btn sm" type="button" id="resume-upload">Anexar currículo</button>
+      <button class="btn ghost sm" type="button" id="resume-remove" hidden>Remover currículo</button>
+      <a class="btn ghost sm" id="pf-resume-link" target="_blank" rel="noopener noreferrer" hidden>Abrir currículo</a>
+     </div>
+     <p class="hint" id="resume-status" role="status" aria-live="polite"></p>
+    </fieldset>
+
     <div class="savebar">
      <span class="muted" id="pf-status" role="status" aria-live="polite"></span>
      <div class="btn-row">

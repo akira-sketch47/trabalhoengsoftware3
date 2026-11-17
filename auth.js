@@ -419,6 +419,23 @@
       return getSupabase().from("profiles").update(payload).eq("id", uid).select("*").single()
         .then(function (result) { return profileFromRow(unwrap(result)); });
     },
+    uploadResume: function (uid, file) {
+      var path = uid + "/resume-" + Date.now() + ".pdf";
+      return getSupabase().storage.from("candidate-resumes").upload(path, file, {
+        contentType: "application/pdf",
+        upsert: false
+      }).then(function (result) {
+        unwrap(result);
+        return path;
+      });
+    },
+    deleteResume: function (path) {
+      return getSupabase().storage.from("candidate-resumes").remove([path]).then(unwrap);
+    },
+    getResumeUrl: function (path) {
+      return getSupabase().storage.from("candidate-resumes").createSignedUrl(path, 3600)
+        .then(function (result) { return unwrap(result).signedUrl; });
+    },
     listJobs: function () {
       return getSupabase().from("jobs").select("*").eq("status", "open").order("created_at", { ascending: false })
         .then(function (result) { return unwrap(result).map(jobFromRow); });
@@ -464,7 +481,7 @@
     },
     listCompanyApplications: function (uid) {
       return getSupabase().from("applications")
-        .select("id,job_id,status,created_at,candidate_name,candidate_email,jobs!inner(title,company_id),profiles!applications_candidate_id_fkey(id,nome,email,tel,cidade,area,esc,sobre,headline,skills,link,avatar,color)")
+        .select("id,job_id,status,created_at,candidate_name,candidate_email,jobs!inner(title,company_id),profiles!applications_candidate_id_fkey(id,nome,email,tel,cidade,area,esc,sobre,headline,skills,link,avatar,color,resume_path)")
         .eq("jobs.company_id", uid)
         .order("created_at", { ascending: false })
         .then(function (result) { return unwrap(result); });
